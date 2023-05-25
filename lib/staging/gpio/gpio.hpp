@@ -52,7 +52,11 @@ public:
 private:
     gpiod::chip chip;
     gpiod::line line;
-    bool is_open{false};
+
+    // flag to indicate wether GPIO is ready to be used
+    bool ready{false};
+
+    // set to true to invert both input and output values
     bool inverted{false};
 };
 } // namespace Everest
