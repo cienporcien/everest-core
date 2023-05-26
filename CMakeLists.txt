@@ -37,7 +37,7 @@ option(BUILD_TESTING "Run unit tests" OFF)
 # tests requires hardware.
 option(BUILD_DEV_TESTS "Build dev tests" OFF)
 
-
+# FIXME (aw): all this dependency related stuff should go into a separate file
 find_package(Boost
     COMPONENTS
         filesystem
@@ -46,6 +46,10 @@ find_package(Boost
         thread
     REQUIRED
 )
+
+# FIXME (aw): we could write find_ scripts or just do it simple for simple libraries
+include(CheckIncludeFileCXX)
+CHECK_INCLUDE_FILE_CXX(gpiod.hpp libgpiod_FOUND)
 
 if(NOT DISABLE_EDM)
     # FIXME (aw): this implicit definition for child projects is hacky

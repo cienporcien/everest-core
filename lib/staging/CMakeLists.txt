@@ -1,1 +1,3 @@
-add_subdirectory(gpio)
+if (libgpiod_FOUND)
+    add_subdirectory(gpio)
+endif ()

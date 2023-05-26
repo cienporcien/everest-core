@@ -8,6 +8,13 @@ endif()
 
 set (EV_CORE_CMAKE_SCRIPT_DIR ${CMAKE_CURRENT_LIST_DIR} CACHE FILEPATH "")
 
+# FIXME (aw): where should this go, should it be global?
+string(ASCII 27 ESCAPE)
+set(FMT_RESET "${ESCAPE}[m")
+set(FMT_BOLD "${ESCAPE}[1m")
+
+message(STATUS "${COLOR_BOLD}Should be bold?${COLOR_RESET}")
+
 # NOTE (aw): maybe this could be also implemented as an IMPORTED target?
 add_custom_target(generate_cpp_files)
 set_target_properties(generate_cpp_files
@@ -205,6 +212,56 @@ endfunction()
 
 function(ev_setup_cpp_module)
     # no-op to not break API
+endfunction()
+
+function (ev_add_module)
+    #
+    # handle passed arguments
+    #
+    set(options "")
+    set(one_value_args "")
+    set(multi_value_args
+        DEPENDENCIES
+    )
+
+    if (${ARGC} LESS 1)
+        message(FATAL_ERROR "${CMAKE_CURRENT_FUNCTION}() missing module name")
+    endif ()
+
+    set (MODULE_NAME ${ARGV0})
+
+    cmake_parse_arguments(PARSE_ARGV 1 OPTNS "${options}" "${one_value_args}" "${multi_value_args}")
+
+    if (OPTNS_UNPARSED_ARGUMENTS)
+        message(FATAL_ERROR "${CMAKE_CURRENT_FUNCTION}() got unknown argument(s): ${OPTNS_UNPARSED_ARGUMENTS}")
+    endif()
+
+    if (OPTNS_DEPENDENCIES)
+        foreach(DEPENDENCY_NAME ${OPTNS_DEPENDENCIES})
+            set(DEPENDENCY_VALUE ${${DEPENDENCY_NAME}})
+            if (NOT DEPENDENCY_VALUE)
+                message(STATUS "${FMT_BOLD}Skipping${FMT_RESET} module ${MODULE_NAME} (${DEPENDENCY_NAME} is false)")
+                return()
+            endif()
+        endforeach()
+    endif()
+
+    # check if python module
+    string(FIND ${MODULE_NAME} "Py" MODULE_PREFIX_POS)
+    if (MODULE_PREFIX_POS EQUAL 0)
+        ev_add_py_module(${MODULE_NAME})
+        return()
+    endif()
+
+    # check if javascript module
+    string(FIND ${MODULE_NAME} "Js" MODULE_PREFIX_POS)
+    if (MODULE_PREFIX_POS EQUAL 0)
+        ev_add_js_module(${MODULE_NAME})
+        return()
+    endif()
+
+    # otherwise, should be cpp module
+    ev_add_cpp_module(${MODULE_NAME})
 endfunction()
 
 function (ev_add_cpp_module MODULE_NAME)
