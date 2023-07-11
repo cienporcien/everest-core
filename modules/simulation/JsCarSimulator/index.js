@@ -243,6 +243,7 @@ function car_statemachine(mod) {
       mod.simdata.error_e = true;
       break;
     case 'diode_fail':
+      mod.simdata_setting.cp_voltage = 9.0;
       drawPower(mod, 0, 0, 0, 0);
       mod.simdata.diode_fail = true;
       break;

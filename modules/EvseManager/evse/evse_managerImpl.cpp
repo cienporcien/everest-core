@@ -105,10 +105,10 @@ void evse_managerImpl::ready() {
         }
     });
 
-    mod->r_bsp->subscribe_telemetry([this](types::board_support::Telemetry telemetry) {
+    mod->r_bsp->subscribe_telemetry([this](types::evse_board_support::Telemetry telemetry) {
         // external Nodered interface
         mod->mqtt.publish(fmt::format("everest_external/nodered/{}/state/temperature", mod->config.connector_id),
-                          telemetry.temperature);
+                          telemetry.evse_temperature_C);
         // /external Nodered interface
         publish_telemetry(telemetry);
     });
@@ -280,13 +280,6 @@ void evse_managerImpl::ready() {
         mod->mqtt.publish(fmt::format("everest_external/nodered/{}/state/state", mod->config.connector_id),
                           static_cast<int>(s));
     });
-
-    mod->charger->signalError.connect([this](types::evse_manager::ErrorEnum s) {
-        mod->mqtt.publish(fmt::format("everest_external/nodered/{}/state/error_type", mod->config.connector_id),
-                          static_cast<int>(s));
-        mod->mqtt.publish(fmt::format("everest_external/nodered/{}/state/error_string", mod->config.connector_id),
-                          types::evse_manager::error_enum_to_string(s));
-    });
     // /Deprecated
 }
 
@@ -363,10 +356,6 @@ bool evse_managerImpl::handle_stop_transaction(types::evse_manager::StopTransact
     return mod->charger->cancelTransaction(request);
 };
 
-bool evse_managerImpl::handle_force_unlock(int& connector_id) {
-    return mod->charger->forceUnlock();
-};
-
 std::string evse_managerImpl::generate_session_uuid() {
     return boost::uuids::to_string(boost::uuids::random_generator()());
 }
@@ -389,6 +378,11 @@ void evse_managerImpl::handle_set_get_certificate_response(
     types::iso15118_charger::Response_Exi_Stream_Status& certificate_response) {
     mod->r_hlc[0]->call_set_Get_Certificate_Response(certificate_response);
 }
+
+bool evse_managerImpl::handle_force_unlock(int& connector_id){
+    // FIXME IMPLEMENT ME
+    return false;
+};
 
 } // namespace evse
 } // namespace module
