@@ -48,7 +48,7 @@ void powermeterImpl::ready() {
         std::thread ([this] {
             while (true) {
                 publish_device_data_topic();
-                std::this_thread::sleep_for(std::chrono::seconds(1));
+                std::this_thread::sleep_for(std::chrono::seconds(5));
             }
         }).detach();
     }
@@ -58,7 +58,7 @@ void powermeterImpl::ready() {
         std::thread ([this] {
             while (true) {
                 publish_device_diagnostics_topic();
-                std::this_thread::sleep_for(std::chrono::seconds(1));
+                std::this_thread::sleep_for(std::chrono::seconds(5));
             }
         }).detach();
     }
