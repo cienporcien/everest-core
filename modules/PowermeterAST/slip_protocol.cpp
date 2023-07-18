@@ -69,7 +69,7 @@ std::vector<uint8_t> SlipProtocol::package_single(const uint8_t address, const s
     // end frame
     vec.push_back(SLIP_START_END_FRAME);
 
-    return vec;
+    return std::move(vec);
 }
 
 std::vector<uint8_t> SlipProtocol::package_multi(const uint8_t address, const std::vector<std::vector<uint8_t>>& multi_payload) {
@@ -81,7 +81,7 @@ std::vector<uint8_t> SlipProtocol::package_multi(const uint8_t address, const st
     }
 
     // ...and return as one long request
-    return this->package_single(address, payload);
+    return std::move(this->package_single(address, payload));
 }
 
 std::vector<uint8_t> SlipProtocol::unpack(std::vector<uint8_t>& message) {
@@ -120,7 +120,7 @@ std::vector<uint8_t> SlipProtocol::unpack(std::vector<uint8_t>& message) {
         data = SLIP_ERROR_CRC_MISMATCH;
     }
 
-    return data;
+    return std::move(data);
 }
 
 } // namespace slip_protocol
