@@ -237,6 +237,8 @@ public:
     void create_command_get_total_stop_import_energy(std::vector<uint8_t>& command_data);
     void create_command_get_total_start_export_energy(std::vector<uint8_t>& command_data);
     void create_command_get_total_stop_export_energy(std::vector<uint8_t>& command_data);
+    void create_command_get_total_dev_import_energy(std::vector<uint8_t>& command_data);
+    void create_command_get_total_dev_export_energy(std::vector<uint8_t>& command_data);
 
     void create_command_get_total_transaction_duration(std::vector<uint8_t>& command_data);
 

@@ -153,6 +153,14 @@ void AstAppLayer::create_command_get_export_power(std::vector<uint8_t>& command_
     command_data = std::move(create_simple_command(ast_app_layer::CommandType::GET_EXPORT_DEV_POWER));
 }
 
+void AstAppLayer::create_command_get_total_dev_import_energy(std::vector<uint8_t>& command_data) {
+    command_data = std::move(create_simple_command(ast_app_layer::CommandType::GET_TOTAL_IMPORT_DEV_ENERGY));
+}
+
+void AstAppLayer::create_command_get_total_dev_export_energy(std::vector<uint8_t>& command_data) {
+    command_data = std::move(create_simple_command(ast_app_layer::CommandType::GET_TOTAL_EXPORT_DEV_ENERGY));
+}
+
 void AstAppLayer::create_command_get_total_power(std::vector<uint8_t>& command_data) {
     command_data = std::move(create_simple_command(ast_app_layer::CommandType::GET_TOTAL_DEV_POWER));
 }
