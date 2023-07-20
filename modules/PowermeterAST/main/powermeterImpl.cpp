@@ -150,6 +150,22 @@ void powermeterImpl::read_device_data() {
         this->serial_device.tx(slip_msg_read_device_data);
         receive_response();
     }
+    {
+        std::vector<uint8_t> get_total_dev_import_energy_cmd{};
+        app_layer.create_command_get_total_dev_import_energy(get_total_dev_import_energy_cmd);
+
+        std::vector<uint8_t> get_total_dev_export_energy_cmd{};
+        app_layer.create_command_get_total_dev_export_energy(get_total_dev_export_energy_cmd);
+
+        std::vector<uint8_t> slip_msg_read_device_data_2 = std::move(this->slip.package_multi(this->config.powermeter_device_id,
+                                                                                              {
+                                                                                                  get_total_dev_import_energy_cmd,
+                                                                                                  get_total_dev_export_energy_cmd
+                                                                                              }));
+
+        this->serial_device.tx(slip_msg_read_device_data_2);
+        receive_response();
+    }
 }
 
 void powermeterImpl::get_device_public_key() {
@@ -468,18 +484,44 @@ void powermeterImpl::process_response(const std::vector<uint8_t>& response_messa
                         }
                         break;
 
+                    case (int)ast_app_layer::CommandType::GET_TOTAL_IMPORT_DEV_ENERGY:
+                        {
+                            types::units::Energy energy_in = this->pm_last_values.energy_Wh_import;
+                            energy_in.total = (float)(((uint64_t)part_data[7] << 56) |
+                                                      ((uint64_t)part_data[6] << 48) |
+                                                      ((uint64_t)part_data[5] << 40) |
+                                                      ((uint64_t)part_data[4] << 32) |
+                                                      ((uint64_t)part_data[3] << 24) |
+                                                      ((uint64_t)part_data[2] << 16) |
+                                                      ((uint64_t)part_data[1] <<  8) |
+                                                       (uint64_t)part_data[0]) / 10.0;  // powermeter reports in [Wh * 10]
+                            this->pm_last_values.energy_Wh_import = energy_in;
+                            EVLOG_info << "(GET_TOTAL_IMPORT_DEV_ENERGY) Not yet implemented.";
+                        }
+                        break;
+
+                    case (int)ast_app_layer::CommandType::GET_TOTAL_EXPORT_DEV_ENERGY:
+                        {
+                            if (this->pm_last_values.energy_Wh_export.has_value()) {
+                                types::units::Energy energy_out = this->pm_last_values.energy_Wh_export.value();
+                            } else {
+                                types::units::Energy energy_out{};
+                            }
+                            energy_out.total = (float)(((uint64_t)part_data[7] << 56) |
+                                                       ((uint64_t)part_data[6] << 48) |
+                                                       ((uint64_t)part_data[5] << 40) |
+                                                       ((uint64_t)part_data[4] << 32) |
+                                                       ((uint64_t)part_data[3] << 24) |
+                                                       ((uint64_t)part_data[2] << 16) |
+                                                       ((uint64_t)part_data[1] <<  8) |
+                                                        (uint64_t)part_data[0]) / 10.0;  // powermeter reports in [Wh * 10]
+                            this->pm_last_values.energy_Wh_export = energy_out;
+                            EVLOG_info << "(GET_TOTAL_EXPORT_DEV_ENERGY) Not yet implemented.";
+                        }
+                        break;
+
                     case (int)ast_app_layer::CommandType::GET_TOTAL_START_IMPORT_DEV_ENERGY:
                         {
-                            // types::units::Energy energy_in = this->pm_last_values.energy_Wh_import;
-                            // energy_in.total = (float)(((uint64_t)part_data[7] << 56) |
-                            //                           ((uint64_t)part_data[6] << 48) |
-                            //                           ((uint64_t)part_data[5] << 40) |
-                            //                           ((uint64_t)part_data[4] << 32) |
-                            //                           ((uint64_t)part_data[3] << 24) |
-                            //                           ((uint64_t)part_data[2] << 16) |
-                            //                           ((uint64_t)part_data[1] <<  8) |
-                            //                            (uint64_t)part_data[0]) / 10.0;  // powermeter reports in [Wh * 10]
-                            // this->pm_last_values.energy_Wh_import = energy_in;
                             EVLOG_info << "(GET_TOTAL_START_IMPORT_DEV_ENERGY) Not yet implemented.";
                         }
                         break;
@@ -498,20 +540,6 @@ void powermeterImpl::process_response(const std::vector<uint8_t>& response_messa
 
                     case (int)ast_app_layer::CommandType::GET_TOTAL_STOP_EXPORT_DEV_ENERGY:
                         {
-                            // if (this->pm_last_values.energy_Wh_export.has_value()) {
-                            //     types::units::Energy energy_out = this->pm_last_values.energy_Wh_export.value();
-                            // } else {
-                            //     types::units::Energy energy_out{};
-                            // }
-                            // energy_out.total = (float)(((uint64_t)part_data[7] << 56) |
-                            //                            ((uint64_t)part_data[6] << 48) |
-                            //                            ((uint64_t)part_data[5] << 40) |
-                            //                            ((uint64_t)part_data[4] << 32) |
-                            //                            ((uint64_t)part_data[3] << 24) |
-                            //                            ((uint64_t)part_data[2] << 16) |
-                            //                            ((uint64_t)part_data[1] <<  8) |
-                            //                             (uint64_t)part_data[0]) / 10.0;  // powermeter reports in [Wh * 10]
-                            // this->pm_last_values.energy_Wh_export = energy_out;
                             EVLOG_info << "(GET_TOTAL_STOP_EXPORT_DEV_ENERGY) Not yet implemented.";
                         }
                         break;
@@ -714,8 +742,7 @@ void powermeterImpl::process_response(const std::vector<uint8_t>& response_messa
                     case (int)ast_app_layer::CommandType::GET_EXPORT_LINE_LOSS_POWER:
                     case (int)ast_app_layer::CommandType::GET_TOTAL_IMPORT_LINE_LOSS_ENERGY:
                     case (int)ast_app_layer::CommandType::GET_TOTAL_EXPORT_LINE_LOSS_ENERGY:
-                    case (int)ast_app_layer::CommandType::GET_TOTAL_IMPORT_DEV_ENERGY:
-                    case (int)ast_app_layer::CommandType::GET_TOTAL_EXPORT_DEV_ENERGY:
+
                     case (int)ast_app_layer::CommandType::GET_SECOND_INDEX:
                     case (int)ast_app_layer::CommandType::GET_PUBKEY_STR32:
                     case (int)ast_app_layer::CommandType::GET_PUBKEY_CSTR16:
@@ -761,16 +788,38 @@ void powermeterImpl::receive_response() {
 // ############################################################################################################################################
 // ############################################################################################################################################
 
+void powermeterImpl::handle_start_transaction(bool transaction_assigned_to_user,
+                                              ast_app_layer::UserIdType user_id_type,
+                                              std::string user_id_data) {
+    ast_app_layer::UserIdStatus user_id_status = ast_app_layer::UserIdStatus::USER_NOT_ASSIGNED;
+    if (transaction_assigned_to_user) {
+        user_id_status = ast_app_layer::UserIdStatus::USER_ASSIGNED;
+    }
+
+    
+    std::vector<uint8_t> data_vect{};
+    app_layer.create_command_start_transaction(user_id_status, user_id_type, user_id_data, data_vect);
+    std::vector<uint8_t> slip_msg_start_transaction = std::move(this->slip.package_single(this->config.powermeter_device_id, data_vect));
+
+    this->serial_device.tx(slip_msg_start_transaction);
+    receive_response();
+}
+
+void powermeterImpl::handle_stop_transaction() {
+    std::vector<uint8_t> data_vect{};
+    app_layer.create_command_stop_transaction(data_vect);
+    std::vector<uint8_t> slip_msg_stop_transaction = std::move(this->slip.package_single(this->config.powermeter_device_id, data_vect));
+
+    this->serial_device.tx(slip_msg_stop_transaction);
+    receive_response();
+}
+
 std::string powermeterImpl::handle_get_signed_meter_value(std::string& auth_token) {
     // your code for cmd get_signed_meter_value goes here
+
+    //
+
     return "everest";
-
-
-//     create_command_start_transaction(ast_app_layer::UserIdStatus user_id_status,
-//                                  ast_app_layer::UserIdType user_id_type,
-//                                  std::string user_id_data,
-//                                  std::vector<uint8_t>& command_data);
-// create_command_stop_transaction(std::vector<uint8_t>& command_data);
 }
 
 } // namespace main
