@@ -46,6 +46,8 @@ public:
 protected:
     // command handler functions (virtual)
     virtual std::string handle_get_signed_meter_value(std::string& auth_token) override;
+    virtual int handle_start_transaction(types::powermeter::TransactionParameters& transaction_parameters) override;
+    virtual int handle_stop_transaction() override;
 
     // ev@d2d1847a-7b88-41dd-ad07-92785f06f5c4:v1
     // insert your protected definitions here
@@ -61,38 +63,37 @@ private:
     // ev@3370e4dd-95f4-47a9-aaec-ea76f34a66c9:v1
     // insert your private definitions here
     class DeviceData {
-        public:
-            std::string data{};
+    public:
+        std::string data{};
 
-            json to_json() {
-                json j = json::object();
-                j["data"] = data;
-                return j;
-            }
+        json to_json() {
+            json j = json::object();
+            j["data"] = data;
+            return j;
+        }
 
-            std::string to_str() {
-                json j = json::object();
-                j["data"] = data;
-                return j.dump();
-            }
-
+        std::string to_str() {
+            json j = json::object();
+            j["data"] = data;
+            return j.dump();
+        }
     };
 
     class DeviceDiagnostics {
-        public:
-            std::string data{};
+    public:
+        std::string data{};
 
-            json to_json() {
-                json j = json::object();
-                j["data"] = data;
-                return j;
-            }
+        json to_json() {
+            json j = json::object();
+            j["data"] = data;
+            return j;
+        }
 
-            std::string to_str() {
-                json j = json::object();
-                j["data"] = data;
-                return j.dump();
-            }
+        std::string to_str() {
+            json j = json::object();
+            j["data"] = data;
+            return j.dump();
+        }
     };
 
     serial_device::SerialDevice serial_device{};

@@ -502,10 +502,9 @@ void powermeterImpl::process_response(const std::vector<uint8_t>& response_messa
 
                     case (int)ast_app_layer::CommandType::GET_TOTAL_EXPORT_DEV_ENERGY:
                         {
+                            types::units::Energy energy_out{};
                             if (this->pm_last_values.energy_Wh_export.has_value()) {
-                                types::units::Energy energy_out = this->pm_last_values.energy_Wh_export.value();
-                            } else {
-                                types::units::Energy energy_out{};
+                                energy_out = this->pm_last_values.energy_Wh_export.value();
                             }
                             energy_out.total = (float)(((uint64_t)part_data[7] << 56) |
                                                        ((uint64_t)part_data[6] << 48) |
@@ -788,30 +787,35 @@ void powermeterImpl::receive_response() {
 // ############################################################################################################################################
 // ############################################################################################################################################
 
-void powermeterImpl::handle_start_transaction(bool transaction_assigned_to_user,
-                                              ast_app_layer::UserIdType user_id_type,
-                                              std::string user_id_data) {
+int powermeterImpl::handle_start_transaction(types::powermeter::TransactionParameters& transaction_parameters) {
+                                                // (bool transaction_assigned_to_user,
+                                            //   ast_app_layer::UserIdType user_id_type,
+                                            //   std::string user_id_data) {
     ast_app_layer::UserIdStatus user_id_status = ast_app_layer::UserIdStatus::USER_NOT_ASSIGNED;
-    if (transaction_assigned_to_user) {
+    if (transaction_parameters.transaction_assigned_to_user) {
         user_id_status = ast_app_layer::UserIdStatus::USER_ASSIGNED;
     }
 
     
-    std::vector<uint8_t> data_vect{};
-    app_layer.create_command_start_transaction(user_id_status, user_id_type, user_id_data, data_vect);
-    std::vector<uint8_t> slip_msg_start_transaction = std::move(this->slip.package_single(this->config.powermeter_device_id, data_vect));
+    // std::vector<uint8_t> data_vect{};
+    // app_layer.create_command_start_transaction(user_id_status, user_id_type, user_id_data, data_vect);
+    // std::vector<uint8_t> slip_msg_start_transaction = std::move(this->slip.package_single(this->config.powermeter_device_id, data_vect));
 
-    this->serial_device.tx(slip_msg_start_transaction);
+    // this->serial_device.tx(slip_msg_start_transaction);
     receive_response();
+
+    // return status of device reaction
 }
 
-void powermeterImpl::handle_stop_transaction() {
+int powermeterImpl::handle_stop_transaction() {
     std::vector<uint8_t> data_vect{};
     app_layer.create_command_stop_transaction(data_vect);
     std::vector<uint8_t> slip_msg_stop_transaction = std::move(this->slip.package_single(this->config.powermeter_device_id, data_vect));
 
     this->serial_device.tx(slip_msg_stop_transaction);
     receive_response();
+
+    // return status of device reaction
 }
 
 std::string powermeterImpl::handle_get_signed_meter_value(std::string& auth_token) {
