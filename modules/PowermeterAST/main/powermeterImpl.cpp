@@ -1101,7 +1101,7 @@ void powermeterImpl::receive_response() {
         // EVLOG_critical << "\n\nRECEIVE: " << hexdump(response) << " length: " << response.size() << "\n\n";
         process_response(std::move(this->slip.unpack(response)));
     } else {
-        EVLOG_info << "Received partial message. Skipping.";
+        EVLOG_info << "Received partial message. Skipping. [" << hexdump(response) << "]";
     }
 }
 
