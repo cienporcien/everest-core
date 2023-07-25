@@ -109,8 +109,10 @@ void to_json(json& j, const DeviceDiagnostics& k) {
     j["pubkey"]["default"]["key"] = k.pubkey;
     j["pubkey"]["default"]["format"] = k.pubkey_format;
     j["ocmf_config_table"] = json::array();
-    for (uint8_t n = 0; n < 16; n++) {
-        j["ocmf_config_table"][n] = k.ocmf_config_table.at(n);
+    if(k.ocmf_config_table.size() > 0) {
+        for (uint8_t n = 0; n < k.ocmf_config_table.size(); n++) {
+            j["ocmf_config_table"][n] = k.ocmf_config_table.at(n);
+        }
     }
 }
 

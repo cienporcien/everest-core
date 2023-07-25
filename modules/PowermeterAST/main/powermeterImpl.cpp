@@ -1096,9 +1096,13 @@ void powermeterImpl::receive_response() {
     response.reserve(ast_app_layer::PM_AST_MAX_RX_LENGTH);
     this->serial_device.rx(response, ast_app_layer::PM_AST_SERIAL_RX_INITIAL_TIMEOUT_MS, ast_app_layer::PM_AST_SERIAL_RX_WITHIN_MESSAGE_TIMEOUT_MS);
 
-    EVLOG_critical << "\n\nRECEIVE: " << hexdump(response) << " length: " << response.size() << "\n\n";
-
-    process_response(std::move(this->slip.unpack(response)));
+    
+    if (response.size() > 5) {
+        // EVLOG_critical << "\n\nRECEIVE: " << hexdump(response) << " length: " << response.size() << "\n\n";
+        process_response(std::move(this->slip.unpack(response)));
+    } else {
+        EVLOG_info << "Received partial message. Skipping.";
+    }
 }
 
 // ############################################################################################################################################

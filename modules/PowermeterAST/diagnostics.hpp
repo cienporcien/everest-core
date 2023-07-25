@@ -91,9 +91,9 @@ std::ostream& operator<<(std::ostream& os, const DeviceDiagnostics& k);
 // TODO(LAD): add error data
 
 struct ErrorData {
-    uint32_t id{};
-    uint16_t priority{};
-    uint32_t counter{};
+    uint32_t id{0};
+    uint16_t priority{0};
+    uint32_t counter{0};
 };
 
 struct FiveErrors {
