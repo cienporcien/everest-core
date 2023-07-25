@@ -5,7 +5,7 @@ active_modules:
     module: PowermeterAST
     config_implementation:
       main:
-        powermeter_device_id: 22
+        powermeter_device_id: 0xff
         serial_port: /dev/ttyUSB0
         baudrate: 115200
         parity: 0
