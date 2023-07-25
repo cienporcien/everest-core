@@ -176,12 +176,12 @@ void SerialDevice::tx(std::vector<uint8_t>& request) {
         write(this->fd, request.data(), request.size());
         tcdrain(this->fd);
 
-        // if (this->ignore_echo) {
-        //     // read back echo of what we sent and ignore it
-        //     std::vector<uint8_t> req_buf{};
-        //     req_buf.reserve(request.size() + 1);
-        //     this->rx(req_buf, std::nullopt, std::nullopt);
-        // }
+        if (this->ignore_echo) {
+            // read back echo of what we sent and ignore it
+            std::vector<uint8_t> req_buf{};
+            req_buf.reserve(request.size() + 1);
+            this->rx(req_buf, std::nullopt, std::nullopt);
+        }
     }
 }
 
