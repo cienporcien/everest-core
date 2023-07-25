@@ -17,6 +17,7 @@
 #include "ast_app_layer.hpp"
 #include "serial_device.hpp"
 #include "slip_protocol.hpp"
+#include "diagnostics.hpp"
 // ev@75ac1216-19eb-4182-a85c-820f1fc2c091:v1
 
 namespace module {
@@ -62,39 +63,6 @@ private:
 
     // ev@3370e4dd-95f4-47a9-aaec-ea76f34a66c9:v1
     // insert your private definitions here
-    class DeviceData {
-    public:
-        std::string data{};
-
-        json to_json() {
-            json j = json::object();
-            j["data"] = data;
-            return j;
-        }
-
-        std::string to_str() {
-            json j = json::object();
-            j["data"] = data;
-            return j.dump();
-        }
-    };
-
-    class DeviceDiagnostics {
-    public:
-        std::string data{};
-
-        json to_json() {
-            json j = json::object();
-            j["data"] = data;
-            return j;
-        }
-
-        std::string to_str() {
-            json j = json::object();
-            j["data"] = data;
-            return j.dump();
-        }
-    };
 
     serial_device::SerialDevice serial_device{};
     slip_protocol::SlipProtocol slip{};
@@ -104,6 +72,10 @@ private:
 
     DeviceData device_data_obj{};
     DeviceDiagnostics device_diagnostics_obj{};
+    Logging logging_obj{};
+    ast_app_layer::ErrorCategory category_requested{};
+    ast_app_layer::ErrorSource source_requested{};
+    std::vector<uint8_t> ocmf_config_table{};
 
     void init_default_values();
     void read_powermeter_values();
@@ -113,6 +85,7 @@ private:
     void read_diagnostics_data();
     void publish_device_data_topic();
     void publish_device_diagnostics_topic();
+    void publish_logging_topic();
     void get_device_public_key();
     void readRegisters();
     void process_response(const std::vector<uint8_t>& register_message);

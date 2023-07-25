@@ -181,21 +181,50 @@ enum class UserIdType : std::uint8_t {
 };
 
 enum class ErrorCategory : std::uint8_t {
-    LAST_ERRORS = 0,
-    LAST_CRITICAL_ERRORS = 1,
-    FIRST_ERRORS_IN_LIST = 2,
-    FIRST_CRITICAL_ERRORS_IN_LIST = 3
+    LAST = 0,
+    LAST_CRITICAL = 1,
+    FIRST = 2,
+    FIRST_CRITICAL = 3
 };
 
 enum class ErrorSource : std::uint8_t {
-    SYSTEM_ERRORS = 0,
-    COMMUNICATION_ERRORS = 1
+    SYSTEM = 0,
+    COMMUNICATION = 1
 };
 
 enum class ApplicationBoardMode : std::uint8_t {
-    APPLICATION_MODE = 0,
-    ASSEMBLY_MODE = 1,
-    // PRODUCTION_MODE = 2
+    APPLICATION = 0,
+    ASSEMBLY = 1,
+    // PRODUCTION = 2
+};
+
+enum class LogType : std::uint8_t {
+    NONE                        = 0,
+    LINE_LOSS_MEASUREMENT_MODE  = 1,
+    IMPEDANCE_CHANGED           = 2,
+    OPERATION_MODE_CHANGED      = 3,
+    ASSEMBLY_CONFIG_CHANGED     = 4,
+    FATAL_ERROR_EVENT           = 5,
+    TIME_DELTA_TOO_BIG_EVENT    = 6,
+    CHARGE_POINT_ID_CHANGED     = 7,
+    EXTERNAL_DISPLAY_PAIRED     = 8,
+    EXTERNAL_DISPLAY_FAILURE    = 9,
+    CHARGE_DATA_OUT_OF_MEMORY   = 10,
+    LOG_DATA_OUT_OF_MEMORY      = 11,
+    FW_VERSION_CHANGED          = 12,
+    PULSE_LED_SOURCE_CHANGED    = 13
+};
+
+class LogEntry {
+public:
+    ast_app_layer::LogType type;
+    uint32_t second_index{};
+    uint32_t utc_time{};
+    uint8_t utc_offset{};
+    std::vector<uint8_t> old_value;  // max. 10 elements
+    std::vector<uint8_t> new_value;  // max. 10 elements
+    std::vector<uint8_t> server_id;  // 10 elements
+    std::vector<uint8_t> signature;  // 64 elements
 };
 
 class Command {
@@ -279,6 +308,7 @@ public:
     void create_command_get_application_board_software_version(std::vector<uint8_t>& command_data);
     void create_command_get_application_board_fw_checksum(std::vector<uint8_t>& command_data);
     void create_command_get_application_board_fw_hash(std::vector<uint8_t>& command_data);
+    void create_command_get_application_board_status(std::vector<uint8_t>& command_data);
     void create_command_get_metering_board_software_version(std::vector<uint8_t>& command_data);
     void create_command_get_metering_board_fw_checksum(std::vector<uint8_t>& command_data);
     

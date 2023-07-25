@@ -1,0 +1,15 @@
+settings:
+  telemetry_enabled: true
+active_modules:
+  PowerMeter:
+    module: PowermeterAST
+    config_implementation:
+      main:
+        powermeter_device_id: 22
+        serial_port: /dev/ttyUSB0
+        baudrate: 115200
+        parity: 0
+        rs485_direction_gpio: -1
+        ignore_echo: true
+        publish_device_data: true
+        publish_device_diagnostics: true

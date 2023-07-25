@@ -15,6 +15,7 @@ target_sources(${MODULE_NAME}
     slip_protocol.cpp
     serial_device.cpp
     ast_app_layer.cpp
+    diagnostics.cpp
 )
 
 target_compile_features(${MODULE_NAME} PUBLIC cxx_std_17)

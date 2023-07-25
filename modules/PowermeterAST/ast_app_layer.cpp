@@ -355,6 +355,10 @@ void AstAppLayer::create_command_get_application_board_fw_hash(std::vector<uint8
     command_data = std::move(create_simple_command(ast_app_layer::CommandType::AB_FW_HASH));
 }
 
+void AstAppLayer::create_command_get_application_board_status(std::vector<uint8_t>& command_data) {
+    command_data = std::move(create_simple_command(ast_app_layer::CommandType::AB_STATUS));
+}
+
 void AstAppLayer::create_command_get_metering_board_software_version(std::vector<uint8_t>& command_data) {
     command_data = std::move(create_simple_command(ast_app_layer::CommandType::MB_SW_VERSION));
 }
