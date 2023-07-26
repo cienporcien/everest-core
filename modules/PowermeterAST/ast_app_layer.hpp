@@ -12,6 +12,7 @@
 #include <chrono>
 #include <stdint.h>
 #include "ld-ev.hpp"
+#include <generated/types/powermeter.hpp>
 
 #include "crc16.hpp"
 
@@ -128,6 +129,8 @@ enum class CommandResult : std::uint8_t {
     NOT_AVAILABLE = 7,                  // data could not be read
     BUSY = 8,                           // transaction ongoing, metering board unavailable
     PUBLIC_KEY_MISSING = 9,             //
+    PROTOCOL_ERROR = 250,               // error on reception at host: protocol error (SLIP protocol)
+    COMMUNICATION_FAILED = 254          // error on communication between PM and host device
 };
 
 inline std::string command_result_to_string(CommandResult res) {
@@ -150,6 +153,10 @@ inline std::string command_result_to_string(CommandResult res) {
         return "Busy";
     case CommandResult::PUBLIC_KEY_MISSING:
         return "Public Key Missing";
+    case CommandResult::PROTOCOL_ERROR:
+        return "Protocol Error";
+    case CommandResult::COMMUNICATION_FAILED:
+        return "Communication Failed";
     }
     throw std::out_of_range("No known string conversion for provided enum of type CommandResult");
 }
@@ -179,6 +186,32 @@ enum class UserIdType : std::uint8_t {
     PHONE_NUMBER = 80,  // international phone number (leading '+' with country code)
     KEY_CODE     = 90   // private user key (no fixed format)
 };
+
+inline ast_app_layer::UserIdType user_id_type_conversion_everest_to_ast(types::powermeter::UserIdType e) {
+    switch (e) {
+        case types::powermeter::UserIdType::None: return ast_app_layer::UserIdType::NONE;
+        case types::powermeter::UserIdType::Denied: return ast_app_layer::UserIdType::DENIED;
+        case types::powermeter::UserIdType::Undefined: return ast_app_layer::UserIdType::UNDEFINED;
+        case types::powermeter::UserIdType::Iso14443: return ast_app_layer::UserIdType::ISO14443;
+        case types::powermeter::UserIdType::Iso15693: return ast_app_layer::UserIdType::ISO15693;
+        case types::powermeter::UserIdType::Emaid: return ast_app_layer::UserIdType::EMAID;
+        case types::powermeter::UserIdType::Evccid: return ast_app_layer::UserIdType::EVCCID;
+        case types::powermeter::UserIdType::Evcoid: return ast_app_layer::UserIdType::EVCOID;
+        case types::powermeter::UserIdType::Iso7812: return ast_app_layer::UserIdType::ISO7812;
+        case types::powermeter::UserIdType::Card_Tx_Nbr: return ast_app_layer::UserIdType::CAR_TXN_NR;
+        case types::powermeter::UserIdType::Central: return ast_app_layer::UserIdType::CENTRAL;
+        case types::powermeter::UserIdType::Central_1: return ast_app_layer::UserIdType::CENTRAL_1;
+        case types::powermeter::UserIdType::Central_2: return ast_app_layer::UserIdType::CENTRAL_2;
+        case types::powermeter::UserIdType::Local: return ast_app_layer::UserIdType::LOCAL;
+        case types::powermeter::UserIdType::Local_1: return ast_app_layer::UserIdType::LOCAL_1;
+        case types::powermeter::UserIdType::Local_2: return ast_app_layer::UserIdType::LOCAL_2;
+        case types::powermeter::UserIdType::Phone_Number: return ast_app_layer::UserIdType::PHONE_NUMBER;
+        case types::powermeter::UserIdType::Key_Code: return ast_app_layer::UserIdType::KEY_CODE;
+    }
+
+    throw std::out_of_range("No known AST type conversion for provided enum of types::powermeter::UserIdType");
+}
+
 
 enum class ErrorCategory : std::uint8_t {
     LAST = 0,

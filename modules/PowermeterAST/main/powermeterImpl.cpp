@@ -437,7 +437,8 @@ void powermeterImpl::readRegisters() {
 // ############################################################################################################################################
 // ############################################################################################################################################
 
-void powermeterImpl::process_response(const std::vector<uint8_t>& response_message) {
+ast_app_layer::CommandResult powermeterImpl::process_response(const std::vector<uint8_t>& response_message) {
+    ast_app_layer::CommandResult response_status{ast_app_layer::CommandResult::OK};
     size_t response_size = response_message.size();
 
     if (response_size == slip_protocol::SLIP_SIZE_ON_ERROR) {
@@ -451,6 +452,7 @@ void powermeterImpl::process_response(const std::vector<uint8_t>& response_messa
         } else {
             EVLOG_error << "Response broken: Unknown error";
         }
+        return ast_app_layer::CommandResult::PROTOCOL_ERROR;
     } else {
         // split into multiple command responses
         uint8_t dest_addr = response_message.at(0);
@@ -460,6 +462,9 @@ void powermeterImpl::process_response(const std::vector<uint8_t>& response_messa
             uint16_t part_len = ((uint16_t)response_message.at(i + 3) << 8) | response_message.at(i + 2);
             uint16_t part_data_len = part_len - 5;
             ast_app_layer::CommandResult part_status = static_cast<ast_app_layer::CommandResult>(response_message.at(i + 4));
+            if (response_status == ast_app_layer::CommandResult::OK) {  // only update response status if not already error present
+                response_status = part_status;
+            }
 
             if ((i + part_len - 1) <= response_size) {
                 std::vector<uint8_t> part_data((response_message.begin() + i + 5), (response_message.begin() + i + part_len));
@@ -762,7 +767,7 @@ void powermeterImpl::process_response(const std::vector<uint8_t>& response_messa
                                 if (part_data[n] == 0x00) break;
                                 device_data_obj.last_ocmf_transaction += part_data[n];
                             }
-                            EVLOG_info << "(GET_LAST_OCMF) Not yet implemented. (diagnostics only)";
+                            this->last_ocmf_str = device_data_obj.last_ocmf_transaction;
                         }
                         break;
 
@@ -1089,9 +1094,10 @@ void powermeterImpl::process_response(const std::vector<uint8_t>& response_messa
         // publish powermeter values
         this->publish_powermeter(this->pm_last_values);
     }
+    return response_status;
 }
 
-void powermeterImpl::receive_response() {
+ast_app_layer::CommandResult powermeterImpl::receive_response() {
     std::vector<uint8_t> response{};
     response.reserve(ast_app_layer::PM_AST_MAX_RX_LENGTH);
     this->serial_device.rx(response, ast_app_layer::PM_AST_SERIAL_RX_INITIAL_TIMEOUT_MS, ast_app_layer::PM_AST_SERIAL_RX_WITHIN_MESSAGE_TIMEOUT_MS);
@@ -1099,9 +1105,10 @@ void powermeterImpl::receive_response() {
     EVLOG_critical << "\n\nRECEIVE: " << hexdump(response) << " length: " << response.size() << "\n\n";
     
     if (response.size() >= 5) {
-        process_response(std::move(this->slip.unpack(response)));
+        return process_response(std::move(this->slip.unpack(response)));
     } else {
         EVLOG_info << "Received partial message. Skipping. [" << hexdump(response) << "]";
+        return ast_app_layer::CommandResult::COMMUNICATION_FAILED;
     }
 }
 
@@ -1110,23 +1117,33 @@ void powermeterImpl::receive_response() {
 // ############################################################################################################################################
 
 int powermeterImpl::handle_start_transaction(types::powermeter::TransactionParameters& transaction_parameters) {
-                                                // (bool transaction_assigned_to_user,
-                                            //   ast_app_layer::UserIdType user_id_type,
-                                            //   std::string user_id_data) {
     ast_app_layer::UserIdStatus user_id_status = ast_app_layer::UserIdStatus::USER_NOT_ASSIGNED;
     if (transaction_parameters.transaction_assigned_to_user) {
         user_id_status = ast_app_layer::UserIdStatus::USER_ASSIGNED;
     }
 
+    ast_app_layer::UserIdType user_id_type = ast_app_layer::UserIdType::NONE;
+    if (transaction_parameters.user_identification_type.has_value()) {
+        user_id_type = ast_app_layer::user_id_type_conversion_everest_to_ast(transaction_parameters.user_identification_type.value());
+    }
+
+    std::string user_id_data = "unidentified_user";
+    if (transaction_parameters.user_identification_name.has_value()) {
+        user_id_data = transaction_parameters.user_identification_name.value();
+    }
     
-    // std::vector<uint8_t> data_vect{};
-    // app_layer.create_command_start_transaction(user_id_status, user_id_type, user_id_data, data_vect);
-    // std::vector<uint8_t> slip_msg_start_transaction = std::move(this->slip.package_single(this->config.powermeter_device_id, data_vect));
+    std::vector<uint8_t> data_vect{};
+    app_layer.create_command_start_transaction(user_id_status, user_id_type, user_id_data, data_vect);
+    std::vector<uint8_t> slip_msg_start_transaction = std::move(this->slip.package_single(this->config.powermeter_device_id, data_vect));
 
-    // this->serial_device.tx(slip_msg_start_transaction);
-    receive_response();
+    this->serial_device.tx(slip_msg_start_transaction);
+    ast_app_layer::CommandResult result = receive_response();
 
-    // return status of device reaction
+    if (result != ast_app_layer::CommandResult::OK) {
+        return -1 * int(result);  // error
+    } else {
+        return 0;
+    }
 }
 
 int powermeterImpl::handle_stop_transaction() {
@@ -1135,17 +1152,30 @@ int powermeterImpl::handle_stop_transaction() {
     std::vector<uint8_t> slip_msg_stop_transaction = std::move(this->slip.package_single(this->config.powermeter_device_id, data_vect));
 
     this->serial_device.tx(slip_msg_stop_transaction);
-    receive_response();
+    ast_app_layer::CommandResult result = receive_response();
 
-    // return status of device reaction
+    if (result != ast_app_layer::CommandResult::OK) {
+        return -1 * int(result);  // error
+    } else {
+        return 0;
+    }
 }
 
 std::string powermeterImpl::handle_get_signed_meter_value(std::string& auth_token) {
-    // your code for cmd get_signed_meter_value goes here
+    std::vector<uint8_t> data_vect{};
+    app_layer.create_command_get_last_transaction_ocmf(data_vect);
+    std::vector<uint8_t> slip_msg_get_last_ocmf = std::move(this->slip.package_single(this->config.powermeter_device_id, data_vect));
 
-    //
+    this->serial_device.tx(slip_msg_get_last_ocmf);
+    ast_app_layer::CommandResult result = receive_response();
 
-    return "everest";
+    if (result != ast_app_layer::CommandResult::OK) {
+        std::stringstream ss;
+        ss << "Error: command failed with code " << int(result) << ". (" << command_result_to_string(result) << ")";
+        return ss.str();
+    }
+
+    return this->last_ocmf_str;
 }
 
 } // namespace main

@@ -76,6 +76,7 @@ private:
     ast_app_layer::ErrorCategory category_requested{};
     ast_app_layer::ErrorSource source_requested{};
     std::vector<uint8_t> ocmf_config_table{};
+    std::string last_ocmf_str{};
 
     void init_default_values();
     void read_powermeter_values();
@@ -88,10 +89,10 @@ private:
     void publish_logging_topic();
     void get_device_public_key();
     void readRegisters();
-    void process_response(const std::vector<uint8_t>& register_message);
+    ast_app_layer::CommandResult process_response(const std::vector<uint8_t>& register_message);
     void request_device_type();
     void error_diagnostics(uint8_t addr);
-    void receive_response();
+    ast_app_layer::CommandResult receive_response();
     // ev@3370e4dd-95f4-47a9-aaec-ea76f34a66c9:v1
 };
 
