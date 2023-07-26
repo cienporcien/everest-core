@@ -32,7 +32,7 @@ namespace conversions {
 
 void to_json(json& j, const DeviceData& k) {
     j["UTC"] = k.utc_time_s;
-    j["GMT_offset_qarterhours"] = k.gmt_offset_quarterhours;
+    j["GMT_offset_quarterhours"] = k.gmt_offset_quarterhours;
     j["total_start_import_energy_Wh"] = k.total_start_import_energy_Wh;
     j["total_stop_import_energy_Wh"] = k.total_stop_import_energy_Wh;
     j["total_start_export_energy_Wh"] = k.total_start_export_energy_Wh;
