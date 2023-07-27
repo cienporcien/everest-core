@@ -529,13 +529,13 @@ ast_app_layer::CommandResult powermeterImpl::process_response(const std::vector<
 
                     case (int)ast_app_layer::CommandType::START_TRANSACTION:
                         {
-                            EVLOG_info << "(START_TRANSACTION) Not yet implemented.";
+                            EVLOG_info << "START_TRANSACTION received.";
                         }
                         break;
 
                     case (int)ast_app_layer::CommandType::STOP_TRANSACTION:
                         {
-                            EVLOG_info << "(STOP_TRANSACTION) Not yet implemented.";
+                            EVLOG_info << "STOP_TRANSACTION received.";
                         }
                         break;
 
@@ -595,7 +595,7 @@ ast_app_layer::CommandResult powermeterImpl::process_response(const std::vector<
                             this->pm_last_values.energy_Wh_import = energy_in;
 
                             device_data_obj.total_dev_import_energy_Wh = get_u64(part_data) / 10.0;  // powermeter reports in [Wh * 10]
-                            EVLOG_info << "(GET_TOTAL_IMPORT_DEV_ENERGY) received";
+                            EVLOG_info << "GET_TOTAL_IMPORT_DEV_ENERGY received.";
                         }
                         break;
 
@@ -722,6 +722,7 @@ ast_app_layer::CommandResult powermeterImpl::process_response(const std::vector<
                                 device_data_obj.last_ocmf_transaction += part_data[n];
                             }
                             this->last_ocmf_str = device_data_obj.last_ocmf_transaction;
+                            EVLOG_info << "GET_LAST_OCMF received.";
                         }
                         break;
 
@@ -930,7 +931,7 @@ ast_app_layer::CommandResult powermeterImpl::process_response(const std::vector<
                             for (uint16_t n = 0; n < 18; n++){
                                 device_diagnostics_obj.app_board.type += part_data[n];
                             }
-                            EVLOG_error << "received AB_DEVICE_TYPE: " << device_diagnostics_obj.app_board.type;
+                            EVLOG_error << "AB_DEVICE_TYPE received: " << device_diagnostics_obj.app_board.type;
                         }
                         break;
 
@@ -938,7 +939,7 @@ ast_app_layer::CommandResult powermeterImpl::process_response(const std::vector<
                         {
                             if (part_data_len < 8) break;
                             device_data_obj.status = get_u64(part_data);
-                            EVLOG_info << "received AB_STATUS: " << device_data_obj.status;
+                            EVLOG_info << "AB_STATUS received: " << device_data_obj.status;
                         }
                         break;
 
