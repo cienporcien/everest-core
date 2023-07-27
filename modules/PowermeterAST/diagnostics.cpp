@@ -82,6 +82,7 @@ std::ostream& operator<<(std::ostream& os, const DeviceData& k) {
 
 void to_json(json& j, const DeviceDiagnostics& k) {
     j["charge_point_id"] = k.charge_point_id;
+    j["charge_point_id_type"] = k.charge_point_id_type;
     j["log_stats"] = json();
     j["log_stats"]["number_log_entries"] = k.log_stats.number_log_entries;
     j["log_stats"]["timestamp_first_log"] = k.log_stats.timestamp_first_log;

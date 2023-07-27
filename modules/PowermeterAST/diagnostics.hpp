@@ -73,6 +73,7 @@ struct MeteringBoardInfo {
 
 struct DeviceDiagnostics {
     std::string charge_point_id{};
+    uint8_t charge_point_id_type{0};
     LogStats log_stats;
     ApplicationBoardInfo app_board;
     MeteringBoardInfo m_board;
