@@ -27,40 +27,40 @@ static std::string hexdump_u16(uint16_t msg) {
 
 inline uint16_t get_u16(std::vector<uint8_t>& vec, uint8_t start_index) {
     if (vec.size() < start_index + 1) return 0;
-    return ((uint16_t)vec[start_index + 1] <<  8) | 
-            (uint16_t)vec[start_index];
+    return std::move(((uint16_t)vec[start_index + 1] <<  8) | 
+                      (uint16_t)vec[start_index]);
 }
 
 inline uint16_t get_u16(std::vector<uint8_t>& vec) {
-    return get_u16(vec, 0);
+    return std::move(get_u16(vec, 0));
 }
 
 inline uint32_t get_u32(std::vector<uint8_t>& vec, uint8_t start_index) {
     if (vec.size() < start_index + 3) return 0;
-    return ((uint32_t)vec[start_index + 3] << 24) | 
-           ((uint32_t)vec[start_index + 2] << 16) | 
-           ((uint32_t)vec[start_index + 1] <<  8) | 
-            (uint32_t)vec[start_index];
+    return std::move(((uint32_t)vec[start_index + 3] << 24) | 
+                     ((uint32_t)vec[start_index + 2] << 16) | 
+                     ((uint32_t)vec[start_index + 1] <<  8) | 
+                      (uint32_t)vec[start_index]);
 }
 
 inline uint16_t get_u32(std::vector<uint8_t>& vec) {
-    return get_u32(vec, 0);
+    return std::move(get_u32(vec, 0));
 }
 
 inline uint64_t get_u64(std::vector<uint8_t>& vec, uint8_t start_index) {
     if (vec.size() < start_index + 7) return 0;
-    return ((uint64_t)vec[start_index + 7] << 56) |
-           ((uint64_t)vec[start_index + 6] << 48) |
-           ((uint64_t)vec[start_index + 5] << 40) |
-           ((uint64_t)vec[start_index + 4] << 32) |
-           ((uint64_t)vec[start_index + 3] << 24) | 
-           ((uint64_t)vec[start_index + 2] << 16) | 
-           ((uint64_t)vec[start_index + 1] <<  8) | 
-            (uint64_t)vec[start_index];
+    return std::move(((uint64_t)vec[start_index + 7] << 56) |
+                     ((uint64_t)vec[start_index + 6] << 48) |
+                     ((uint64_t)vec[start_index + 5] << 40) |
+                     ((uint64_t)vec[start_index + 4] << 32) |
+                     ((uint64_t)vec[start_index + 3] << 24) | 
+                     ((uint64_t)vec[start_index + 2] << 16) | 
+                     ((uint64_t)vec[start_index + 1] <<  8) | 
+                      (uint64_t)vec[start_index]);
 }
 
 inline uint16_t get_u64(std::vector<uint8_t>& vec) {
-    return get_u64(vec, 0);
+    return std::move(get_u64(vec, 0));
 }
 
 inline std::string get_str(std::vector<uint8_t>& vec, uint8_t start_index, uint8_t length) {
