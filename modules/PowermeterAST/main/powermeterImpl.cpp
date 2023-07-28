@@ -560,7 +560,7 @@ ast_app_layer::CommandResult powermeterImpl::process_response(const std::vector<
                         {
                             if (part_data_len < 4) break;
                             types::units::Voltage volt = this->pm_last_values.voltage_V.value();
-                            volt.DC = (float)get_u32(part_data);
+                            volt.DC = (float)get_u32(part_data) / 100.0; // powermeter reports in 100 * [V]
                             this->pm_last_values.voltage_V = volt;
                             EVLOG_info << "GET_VOLTAGE_L1 received.";
                         }
@@ -588,13 +588,13 @@ ast_app_layer::CommandResult powermeterImpl::process_response(const std::vector<
 
                     case (int)ast_app_layer::CommandType::GET_EXPORT_DEV_POWER:
                         {
-                            EVLOG_info << "(GET_EXPORT_DEV_POWER) Not yet implemented.";
+                            EVLOG_info << "(GET_EXPORT_DEV_POWER) Not yet implemented. [" << (float)get_u32(part_data) / 100.0  /* powermeter reports in [W * 100] */ << " W]";
                         }
                         break;
 
                     case (int)ast_app_layer::CommandType::GET_TOTAL_DEV_POWER:
                         {
-                            EVLOG_info << "(GET_TOTAL_DEV_POWER) Not yet implemented.";
+                            EVLOG_info << "(GET_TOTAL_DEV_POWER) Not yet implemented. [" << (float)get_u32(part_data) / 100.0  /* powermeter reports in [W * 100] */ << " W]";
                         }
                         break;
 
