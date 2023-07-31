@@ -4,6 +4,7 @@
 #include "powermeterImpl.hpp"
 
 #include <fmt/core.h>
+#include "Timeout.hpp"
 
 namespace module {
 namespace main {
@@ -487,508 +488,503 @@ ast_app_layer::CommandResult powermeterImpl::process_response(const std::vector<
     ast_app_layer::CommandResult response_status{ast_app_layer::CommandResult::OK};
     size_t response_size = response_message.size();
 
-    if (response_size == slip_protocol::SLIP_SIZE_ON_ERROR) {
-        // error handling
-        if (response_message == slip_protocol::SLIP_ERROR_SIZE_ERROR) {
-            EVLOG_error << "Response broken: Size of message is too short!";
-        } else if (response_message == slip_protocol::SLIP_ERROR_MALFORMED) {
-            EVLOG_error << "Response broken: Malformed message received!";
-        } else if (response_message == slip_protocol::SLIP_ERROR_CRC_MISMATCH) {
-            EVLOG_error << "Response broken: CRC mismatch!";
+    // split into multiple command responses
+    uint8_t dest_addr = response_message.at(0);
+    uint16_t i = 1;
+    while ((i + 4) <= response_size) {
+        uint16_t part_cmd = ((uint16_t)response_message.at(i + 1) << 8) | response_message.at(i);
+        uint16_t part_len = ((uint16_t)response_message.at(i + 3) << 8) | response_message.at(i + 2);
+        uint16_t part_data_len = part_len - 5;
+        ast_app_layer::CommandResult part_status = static_cast<ast_app_layer::CommandResult>(response_message.at(i + 4));
+        if (response_status == ast_app_layer::CommandResult::OK) {  // only update response status if not already error present
+            response_status = part_status;
+        }
+
+        if ((i + part_len - 1) <= response_size) {
+            std::vector<uint8_t> part_data((response_message.begin() + i + 5), (response_message.begin() + i + part_len));
+
+            EVLOG_info << "\n\n"
+                        << "response received from ID " << int(dest_addr) << ": \n"
+                        << "    cmd: 0x" << hexdump_u16(part_cmd) 
+                        << "   len: " << part_len 
+                        << "   status: " << std::hex << std::setw(2) << std::setfill('0') << static_cast<uint8_t>(part_status)
+                        << "   data: " << ((part_len > 5) ? hexdump(part_data) : "none") 
+                        << "\n\n";
+
+            if (part_status != ast_app_layer::CommandResult::OK) {
+                EVLOG_error << "Powermeter has signaled an error (\"" 
+                            << ast_app_layer::command_result_to_string(part_status) 
+                            << "\")! Retrieving diagnostics data...";
+                error_diagnostics(dest_addr);
+            }
+
+            // process response
+            switch (part_cmd) {
+
+            // operational values
+
+                case (int)ast_app_layer::CommandType::START_TRANSACTION:
+                    {
+                        this->start_transaction_msg_status = MessageStatus::RECEIVED;
+                        this->start_transact_result = part_status;
+                        EVLOG_info << "START_TRANSACTION received.";
+                    }
+                    break;
+
+                case (int)ast_app_layer::CommandType::STOP_TRANSACTION:
+                    {
+                        this->stop_transaction_msg_status = MessageStatus::RECEIVED;
+                        this->stop_transact_result = part_status;
+                        EVLOG_info << "STOP_TRANSACTION received.";
+                    }
+                    break;
+
+                case (int)ast_app_layer::CommandType::TIME:
+                    {
+                        if (part_data_len < 5) break;
+                        device_data_obj.utc_time_s = get_u32(part_data);
+                        device_data_obj.gmt_offset_quarterhours = part_data[4];
+                        EVLOG_info << "(TIME) Not yet implemented. (diagnostics only)";
+                    }
+                    break;
+
+                case (int)ast_app_layer::CommandType::GET_VOLTAGE_L1:
+                    {
+                        if (part_data_len < 4) break;
+                        types::units::Voltage volt = this->pm_last_values.voltage_V.value();
+                        volt.DC = (float)get_u32(part_data) / 100.0; // powermeter reports in 100 * [V]
+                        this->pm_last_values.voltage_V = volt;
+                        EVLOG_info << "GET_VOLTAGE_L1 received.";
+                    }
+                    break;
+
+                case (int)ast_app_layer::CommandType::GET_CURRENT_L1:
+                    {
+                        if (part_data_len < 4) break;
+                        types::units::Current amp = this->pm_last_values.current_A.value();
+                        amp.DC = (float)get_u32(part_data) / 1000.0;  // powermeter reports in [mA]
+                        this->pm_last_values.current_A = amp;
+                        EVLOG_info << "GET_CURRENT_L1 received.";
+                    }
+                    break;
+
+                case (int)ast_app_layer::CommandType::GET_IMPORT_DEV_POWER:
+                    {
+                        if (part_data_len < 4) break;
+                        types::units::Power power = this->pm_last_values.power_W.value();
+                        power.total = (float)get_u32(part_data) / 100.0;  // powermeter reports in [W * 100]
+                        this->pm_last_values.power_W = power;
+                        EVLOG_info << "GET_IMPORT_DEV_POWER received.";
+                    }
+                    break;
+
+                case (int)ast_app_layer::CommandType::GET_EXPORT_DEV_POWER:
+                    {
+                        EVLOG_info << "(GET_EXPORT_DEV_POWER) Not yet implemented. [" << (float)get_u32(part_data) / 100.0  /* powermeter reports in [W * 100] */ << " W]";
+                    }
+                    break;
+
+                case (int)ast_app_layer::CommandType::GET_TOTAL_DEV_POWER:
+                    {
+                        EVLOG_info << "(GET_TOTAL_DEV_POWER) Not yet implemented. [" << (float)get_u32(part_data) / 100.0  /* powermeter reports in [W * 100] */ << " W]";
+                    }
+                    break;
+
+                case (int)ast_app_layer::CommandType::GET_TOTAL_IMPORT_DEV_ENERGY:
+                    {
+                        if (part_data_len < 8) break;
+                        types::units::Energy energy_in = this->pm_last_values.energy_Wh_import;
+                        energy_in.total = (float)get_u64(part_data) / 10.0;  // powermeter reports in [Wh * 10]
+                        this->pm_last_values.energy_Wh_import = energy_in;
+
+                        device_data_obj.total_dev_import_energy_Wh = get_u64(part_data) / 10.0;  // powermeter reports in [Wh * 10]
+                        EVLOG_info << "GET_TOTAL_IMPORT_DEV_ENERGY received.";
+                    }
+                    break;
+
+                case (int)ast_app_layer::CommandType::GET_TOTAL_EXPORT_DEV_ENERGY:
+                    {
+                        if (part_data_len < 8) break;
+                        types::units::Energy energy_out{};
+                        if (this->pm_last_values.energy_Wh_export.has_value()) {
+                            energy_out = this->pm_last_values.energy_Wh_export.value();
+                        }
+                        energy_out.total = (float)get_u64(part_data) / 10.0;  // powermeter reports in [Wh * 10]
+                        this->pm_last_values.energy_Wh_export = energy_out;
+
+                        device_data_obj.total_dev_export_energy_Wh = get_u64(part_data) / 10.0;  // powermeter reports in [Wh * 10]
+                        EVLOG_info << "(GET_TOTAL_EXPORT_DEV_ENERGY) Not yet implemented. (diagnostics only)";
+                    }
+                    break;
+
+                case (int)ast_app_layer::CommandType::GET_TOTAL_START_IMPORT_DEV_ENERGY:
+                    {
+                        if (part_data_len < 8) break;
+                        device_data_obj.total_start_import_energy_Wh = get_u64(part_data) / 10.0;  // powermeter reports in [Wh * 10]
+                        EVLOG_info << "(GET_TOTAL_START_IMPORT_DEV_ENERGY) Not yet implemented. (diagnostics only)";
+                    }
+                    break;
+
+                case (int)ast_app_layer::CommandType::GET_TOTAL_STOP_IMPORT_DEV_ENERGY:
+                    {
+                        if (part_data_len < 8) break;
+                        device_data_obj.total_stop_import_energy_Wh = get_u64(part_data) / 10.0;  // powermeter reports in [Wh * 10]
+                        EVLOG_info << "(GET_TOTAL_STOP_IMPORT_DEV_ENERGY) Not yet implemented. (diagnostics only)";   
+                    }
+                    break;
+
+                case (int)ast_app_layer::CommandType::GET_TOTAL_START_EXPORT_DEV_ENERGY:
+                    {
+                        if (part_data_len < 8) break;
+                        device_data_obj.total_start_export_energy_Wh = get_u64(part_data) / 10.0;  // powermeter reports in [Wh * 10]
+                        EVLOG_info << "(GET_TOTAL_START_EXPORT_DEV_ENERGY) Not yet implemented. (diagnostics only)";   
+                    }
+                    break;
+
+                case (int)ast_app_layer::CommandType::GET_TOTAL_STOP_EXPORT_DEV_ENERGY:
+                    {
+                        if (part_data_len < 8) break;
+                        device_data_obj.total_stop_export_energy_Wh = get_u64(part_data) / 10.0;  // powermeter reports in [Wh * 10]
+                        EVLOG_info << "(GET_TOTAL_STOP_EXPORT_DEV_ENERGY) Not yet implemented. (diagnostics only)";
+                    }
+                    break;
+
+                case (int)ast_app_layer::CommandType::GET_TRANSACT_TOTAL_DURATION:
+                    {
+                        if (part_data_len < 4) break;
+                        device_data_obj.total_transaction_duration_s = get_u32(part_data);
+                        EVLOG_info << "(GET_TRANSACT_TOTAL_DURATION) Not yet implemented. (diagnostics only)";
+                    }
+                    break;
+
+                case (int)ast_app_layer::CommandType::GET_PUBKEY_STR16:
+                    {
+                        if (part_data_len < 129) break;
+                        device_diagnostics_obj.pubkey_str16_format = part_data[0];
+                        device_diagnostics_obj.pubkey_str16 = get_str(part_data, 1, 129);
+                        EVLOG_info << "(GET_PUBKEY_STR16) Not yet implemented. (diagnostics only)";
+                    }
+                    break;
+
+                case (int)ast_app_layer::CommandType::GET_PUBKEY_ASN1:
+                    {
+                        if (part_data_len < 176) break;
+                        device_diagnostics_obj.pubkey_asn1 = get_str(part_data, 0, 176);
+                        EVLOG_info << "(GET_PUBKEY_ASN1) Not yet implemented. (diagnostics only)";
+                    }
+                    break;
+
+                case (int)ast_app_layer::CommandType::REQUEST_METER_PUBKEY:
+                    {
+                        if (part_data_len < 65) break;
+                        device_diagnostics_obj.pubkey_format = part_data[0];
+                        device_diagnostics_obj.pubkey = get_str(part_data, 1, 65);
+                        EVLOG_info << "(REQUEST_METER_PUBKEY) Not yet implemented. (diagnostics only)";
+                    }
+                    break;
+
+            // diagnostics
+
+                case (int)ast_app_layer::CommandType::OCMF_STATS:
+                    {
+                        if (part_data_len < 16) break;
+                        device_data_obj.ocmf_stats.number_transactions = get_u32(part_data);
+                        device_data_obj.ocmf_stats.timestamp_first_transaction = get_u32(part_data, 5);
+                        device_data_obj.ocmf_stats.timestamp_last_transaction = get_u32(part_data, 9);
+                        device_data_obj.ocmf_stats.max_number_of_transactions = get_u32(part_data, 13);
+                        EVLOG_info << "(OCMF_STATS) Not yet implemented. (diagnostics only)";
+                    }
+                    break;
+
+                case (int)ast_app_layer::CommandType::GET_OCMF:
+                    {
+                        if (part_data_len < 16) break;
+                        device_data_obj.requested_ocmf = get_str(part_data, 0, part_data_len);
+                        EVLOG_info << "(GET_OCMF) Not yet implemented. (diagnostics only)";
+                    }
+                    break;
+
+                case (int)ast_app_layer::CommandType::GET_LAST_OCMF:
+                    {
+                        if (this->get_transaction_values_msg_status == MessageStatus::SENT) {
+                            this->get_transaction_values_msg_status = MessageStatus::RECEIVED;
+                        }
+                        device_data_obj.last_ocmf_transaction = get_str(part_data, 0, part_data_len);
+                        this->last_ocmf_str = device_data_obj.last_ocmf_transaction;
+                        EVLOG_info << "GET_LAST_OCMF received.";
+                    }
+                    break;
+
+                case (int)ast_app_layer::CommandType::OCMF_INFO:
+                    {
+                        if (part_data_len < 1) break;
+
+                        // gateway_id
+                        if (part_data_len < part_data[0]) break;  // error, data too short
+                        uint8_t length_gateway_id = part_data[0];
+                        if (length_gateway_id > 18) length_gateway_id = 18; // max length
+                        device_data_obj.ocmf_info.gateway_id = get_str(part_data, 1, length_gateway_id);
+
+                        // manufacturer
+                        if (part_data_len < (length_gateway_id + part_data[length_gateway_id])) break;  // error, data too short
+                        uint8_t length_manufacturer = part_data[length_gateway_id];
+                        if (length_manufacturer > 4) length_manufacturer = 4; // max length
+                        device_data_obj.ocmf_info.manufacturer = get_str(part_data, length_gateway_id, length_manufacturer);
+
+                        // model
+                        if (part_data_len < (length_gateway_id + length_manufacturer + part_data[length_gateway_id + length_manufacturer])) break;  // error, data too short
+                        uint8_t length_model = part_data[length_gateway_id + length_manufacturer];
+                        if (length_model > 18) length_model = 18; // max length
+                        device_data_obj.ocmf_info.model = get_str(part_data, (length_gateway_id + length_manufacturer), length_model);
+                        
+                        EVLOG_info << "(OCMF_INFO) Not yet implemented. (diagnostics only)";
+                    }
+                    break;
+
+                case (int)ast_app_layer::CommandType::OCMF_CONFIG:
+                    {
+                        if (part_data_len < 16) break;
+                        ocmf_config_table.clear();
+                        for (uint8_t n = 0; n < 16; n++) {
+                            ocmf_config_table.push_back(part_data[n]);
+                        }
+                        EVLOG_info << "(OCMF_CONFIG) Not yet implemented. (diagnostics only)";
+                    }
+                    break;
+
+                case (int)ast_app_layer::CommandType::CHARGE_POINT_ID:
+                    {
+                        if (part_data_len < 14) break;
+                        device_diagnostics_obj.charge_point_id_type = part_data[0];
+                        device_diagnostics_obj.charge_point_id = get_str(part_data, 1, 13);
+                        EVLOG_info << "(CHARGE_POINT_ID) Not yet implemented. (diagnostics only)";
+                    }
+                    break;
+
+                case (int)ast_app_layer::CommandType::GET_ERRORS:
+                    {
+                        if (part_data_len < 50) break;
+                        uint j = 0;
+                        for (uint8_t i = 0; i < 5; i++) {
+                            j = i * 10;
+                            logging_obj.source[(uint8_t)source_requested].category[(uint8_t)category_requested].error[i].id       = get_u32(part_data, j);
+                            logging_obj.source[(uint8_t)source_requested].category[(uint8_t)category_requested].error[i].priority = get_u16(part_data, j + 4);
+                            logging_obj.source[(uint8_t)source_requested].category[(uint8_t)category_requested].error[i].counter  = get_u32(part_data, j + 6);
+                        }
+                        EVLOG_info << "(GET_ERRORS) Not yet implemented. (diagnostics only)";
+                    }
+                    break;
+
+                case (int)ast_app_layer::CommandType::GET_LOG_STATS:
+                    {
+                        if (part_data_len < 16) break;
+                        device_diagnostics_obj.log_stats.number_log_entries  = get_u32(part_data);
+                        device_diagnostics_obj.log_stats.timestamp_first_log = get_u32(part_data, 5);
+                        device_diagnostics_obj.log_stats.timestamp_last_log  = get_u32(part_data, 9);
+                        device_diagnostics_obj.log_stats.max_number_of_logs  = get_u32(part_data, 13);
+                        EVLOG_info << "(GET_LOG_STATS) Not yet implemented. (diagnostics only)";
+                    }
+                    break;
+
+                case (int)ast_app_layer::CommandType::GET_LOG_ENTRY:
+                    {
+                        EVLOG_info << "(GET_LOG_ENTRY) Not yet implemented.";
+                    }
+                    break;
+
+                case (int)ast_app_layer::CommandType::GET_LAST_LOG_ENTRY:
+                    {
+                        if (part_data_len < 104) break;
+                        logging_obj.last_log.type         = static_cast<ast_app_layer::LogType>(part_data[0]);
+                        logging_obj.last_log.second_index = get_u32(part_data, 1);
+                        logging_obj.last_log.utc_time     = get_u32(part_data, 5);
+                        logging_obj.last_log.utc_offset   = part_data[9];
+                        for (uint8_t n = 10; n < 20; n++){
+                            logging_obj.last_log.old_value.push_back(part_data[n]);
+                        }
+                        for (uint8_t n = 20; n < 30; n++){
+                            logging_obj.last_log.new_value.push_back(part_data[n]);
+                        }
+                        for (uint8_t n = 30; n < 40; n++){
+                            logging_obj.last_log.server_id.push_back(part_data[n]);
+                        }
+                        for (uint8_t n = 40; n < 104; n++){
+                            logging_obj.last_log.signature.push_back(part_data[n]);
+                        }
+                        EVLOG_info << "(GET_LAST_LOG_ENTRY) Not yet implemented. (diagnostics only)";
+                    }
+                    break;
+
+                case (int)ast_app_layer::CommandType::GET_LOG_ENTRY_REVERSE:
+                    {
+                        EVLOG_info << "(GET_LOG_ENTRY_REVERSE) Not yet implemented.";
+                    }
+                    break;
+
+            // device parameters
+
+                case (int)ast_app_layer::CommandType::AB_MODE_SET:
+                    {
+                        if (part_data_len < 1) break;
+                        device_diagnostics_obj.app_board.mode = part_data[0];
+                        EVLOG_info << "(AB_MODE_SET) Not yet implemented. (diagnostics only)";
+                    }
+                    break;
+
+                case (int)ast_app_layer::CommandType::AB_HW_VERSION:
+                    {
+                        if (part_data_len < 41) break;
+                        device_diagnostics_obj.app_board.hw_ver = get_str(part_data, 0, 20);
+                        device_diagnostics_obj.m_board.hw_ver   = get_str(part_data, 21, 20);
+                        EVLOG_info << "(AB_HW_VERSION) Not yet implemented. (diagnostics only)";
+                    }
+                    break;
+
+                case (int)ast_app_layer::CommandType::AB_SERVER_ID:
+                    {
+                        if (part_data_len < 10) break;
+                        device_diagnostics_obj.app_board.server_id = get_str(part_data, 0, 10);
+                        EVLOG_info << "(AB_SERVER_ID) Not yet implemented. (diagnostics only)";
+                    }
+                    break;
+
+                case (int)ast_app_layer::CommandType::AB_SERIAL_NR:
+                    {
+                        if (part_data_len < 4) break;
+                        device_diagnostics_obj.app_board.serial_number = get_u32(part_data);
+                        EVLOG_info << "(AB_SERIAL_NR) Not yet implemented. (diagnostics only)";
+                    }
+                    break;
+
+                case (int)ast_app_layer::CommandType::AB_SW_VERSION:
+                    {
+                        if (part_data_len < 20) break;
+                        device_diagnostics_obj.app_board.sw_ver = get_str(part_data, 0, 20);
+                        EVLOG_info << "(AB_SW_VERSION) Not yet implemented. (diagnostics only)";
+                    }
+                    break;
+
+                case (int)ast_app_layer::CommandType::AB_FW_CHECKSUM:
+                    {
+                        if (part_data_len < 2) break;
+                        device_diagnostics_obj.app_board.fw_crc = get_u16(part_data);
+                        EVLOG_info << "(AB_FW_CHECKSUM) Not yet implemented. (diagnostics only)";
+                    }
+                    break;
+
+                case (int)ast_app_layer::CommandType::AB_FW_HASH:
+                    {
+                        if (part_data_len < 2) break;
+                        device_diagnostics_obj.app_board.fw_hash = get_u16(part_data);
+                        EVLOG_info << "(AB_FW_HASH) Not yet implemented. (diagnostics only)";
+                    }
+                    break;
+
+                case (int)ast_app_layer::CommandType::MB_SW_VERSION:
+                    {
+                        if (part_data_len < 20) break;
+                        device_diagnostics_obj.m_board.sw_ver = get_str(part_data, 0, 20);
+                        EVLOG_info << "(MB_SW_VERSION) Not yet implemented. (diagnostics only)";
+                    }
+                    break;
+
+                case (int)ast_app_layer::CommandType::MB_FW_CHECKSUM:
+                    {
+                        if (part_data_len < 2) break;
+                        device_diagnostics_obj.m_board.fw_crc = get_u16(part_data);
+                        EVLOG_info << "(MB_FW_CHECKSUM) Not yet implemented. (diagnostics only)";
+                    }
+                    break;
+
+                case (int)ast_app_layer::CommandType::AB_DEVICE_TYPE:
+                    {
+                        if (part_data_len < 18) break;
+                        device_diagnostics_obj.app_board.type = get_str(part_data, 0, 18);
+                        EVLOG_error << "AB_DEVICE_TYPE received: " << device_diagnostics_obj.app_board.type;
+                    }
+                    break;
+
+                case (int)ast_app_layer::CommandType::AB_STATUS:
+                    {
+                        if (part_data_len < 8) break;
+                        device_data_obj.status = get_u64(part_data);
+                        EVLOG_info << "AB_STATUS received: " << device_data_obj.status;
+                    }
+                    break;
+
+            // not (yet) implemented
+
+                case (int)ast_app_layer::CommandType::RESET_DC_METER:
+                case (int)ast_app_layer::CommandType::MEASUREMENT_MODE:
+                case (int)ast_app_layer::CommandType::GET_NORMAL_VOLTAGE:
+                case (int)ast_app_layer::CommandType::GET_NORMAL_CURRENT:
+                case (int)ast_app_layer::CommandType::GET_MAX_CURRENT:
+                case (int)ast_app_layer::CommandType::LINE_LOSS_IMPEDANCE:
+                case (int)ast_app_layer::CommandType::LINE_LOSS_MEAS_MODE:
+                case (int)ast_app_layer::CommandType::TEMPERATURE:
+                case (int)ast_app_layer::CommandType::METER_BUS_ADDR:
+                case (int)ast_app_layer::CommandType::GET_OCMF_REVERSE:
+                case (int)ast_app_layer::CommandType::GET_PUBKEY_BIN:
+                case (int)ast_app_layer::CommandType::GET_TRANSACT_IMPORT_LINE_LOSS_ENERGY:
+                case (int)ast_app_layer::CommandType::GET_TRANSACT_EXPORT_LINE_LOSS_ENERGY:
+                case (int)ast_app_layer::CommandType::GET_TRANSACT_TOTAL_IMPORT_DEV_ENERGY:
+                case (int)ast_app_layer::CommandType::GET_TRANSACT_TOTAL_EXPORT_DEV_ENERGY:
+                case (int)ast_app_layer::CommandType::GET_TRANSACT_TOTAL_IMPORT_MAINS_ENERGY:
+                case (int)ast_app_layer::CommandType::GET_TRANSACT_TOTAL_EXPORT_MAINS_ENERGY:
+                case (int)ast_app_layer::CommandType::GET_TOTAL_START_IMPORT_LINE_LOSS_ENERGY:
+                case (int)ast_app_layer::CommandType::GET_TOTAL_START_EXPORT_LINE_LOSS_ENERGY:
+                case (int)ast_app_layer::CommandType::GET_TOTAL_START_IMPORT_MAINS_ENERGY:
+                case (int)ast_app_layer::CommandType::GET_TOTAL_START_EXPORT_MAINS_ENERGY:
+                case (int)ast_app_layer::CommandType::GET_TOTAL_STOP_IMPORT_LINE_LOSS_ENERGY:
+                case (int)ast_app_layer::CommandType::GET_TOTAL_STOP_EXPORT_LINE_LOSS_ENERGY:
+                case (int)ast_app_layer::CommandType::GET_TOTAL_STOP_IMPORT_MAINS_ENERGY:
+                case (int)ast_app_layer::CommandType::GET_TOTAL_STOP_EXPORT_MAINS_ENERGY:
+                case (int)ast_app_layer::CommandType::REGISTER_DISPLAY_PUBKEY:
+                case (int)ast_app_layer::CommandType::REQUEST_CHALLENGE:
+                case (int)ast_app_layer::CommandType::SET_SIGNED_CHALLENGE:
+                case (int)ast_app_layer::CommandType::GET_TOTAL_IMPORT_MAINS_ENERGY:
+                case (int)ast_app_layer::CommandType::GET_TOTAL_EXPORT_MAINS_ENERGY:
+                case (int)ast_app_layer::CommandType::GET_TOTAL_IMPORT_MAINS_POWER:
+                case (int)ast_app_layer::CommandType::GET_TOTAL_EXPORT_MAINS_POWER:
+                case (int)ast_app_layer::CommandType::GET_DEV_VOLTAGE_L1:
+                case (int)ast_app_layer::CommandType::GET_IMPORT_LINE_LOSS_POWER:
+                case (int)ast_app_layer::CommandType::GET_EXPORT_LINE_LOSS_POWER:
+                case (int)ast_app_layer::CommandType::GET_TOTAL_IMPORT_LINE_LOSS_ENERGY:
+                case (int)ast_app_layer::CommandType::GET_TOTAL_EXPORT_LINE_LOSS_ENERGY:
+                case (int)ast_app_layer::CommandType::GET_SECOND_INDEX:
+                case (int)ast_app_layer::CommandType::GET_PUBKEY_STR32:
+                case (int)ast_app_layer::CommandType::GET_PUBKEY_CSTR16:
+                case (int)ast_app_layer::CommandType::GET_PUBKEY_CSTR32:
+                case (int)ast_app_layer::CommandType::REPEAT_DATA:
+                case (int)ast_app_layer::CommandType::AB_DMC:
+                case (int)ast_app_layer::CommandType::AB_PROD_DATE:
+                case (int)ast_app_layer::CommandType::SET_REQUEST_CHALLENGE:
+                    {
+                        EVLOG_error << "Command not (yet) implemented. (" << hexdump_u16(part_cmd) << ")";
+                    }
+                    break;
+
+                default:
+                    {
+                        EVLOG_error << "Command ID invalid. (" << hexdump_u16(part_cmd) << ")";
+                    }
+                    break;
+            }
+
         } else {
-            EVLOG_error << "Response broken: Unknown error";
+            EVLOG_error << "Error: Malformed data.";
         }
-        return ast_app_layer::CommandResult::PROTOCOL_ERROR;
-    } else {
-        // split into multiple command responses
-        uint8_t dest_addr = response_message.at(0);
-        uint16_t i = 1;
-        while ((i + 4) <= response_size) {
-            uint16_t part_cmd = ((uint16_t)response_message.at(i + 1) << 8) | response_message.at(i);
-            uint16_t part_len = ((uint16_t)response_message.at(i + 3) << 8) | response_message.at(i + 2);
-            uint16_t part_data_len = part_len - 5;
-            ast_app_layer::CommandResult part_status = static_cast<ast_app_layer::CommandResult>(response_message.at(i + 4));
-            if (response_status == ast_app_layer::CommandResult::OK) {  // only update response status if not already error present
-                response_status = part_status;
-            }
-
-            if ((i + part_len - 1) <= response_size) {
-                std::vector<uint8_t> part_data((response_message.begin() + i + 5), (response_message.begin() + i + part_len));
-
-                EVLOG_info << "\n\n"
-                           << "response received from ID " << int(dest_addr) << ": \n"
-                           << "    cmd: 0x" << hexdump_u16(part_cmd) 
-                           << "   len: " << part_len 
-                           << "   status: " << std::hex << std::setw(2) << std::setfill('0') << static_cast<uint8_t>(part_status)
-                           << "   data: " << ((part_len > 5) ? hexdump(part_data) : "none") 
-                           << "\n\n";
-
-                if (part_status != ast_app_layer::CommandResult::OK) {
-                    EVLOG_error << "Powermeter has signaled an error (\"" 
-                                << ast_app_layer::command_result_to_string(part_status) 
-                                << "\")! Retrieving diagnostics data...";
-                    error_diagnostics(dest_addr);
-                }
-
-                // process response
-                switch (part_cmd) {
-
-                // operational values
-
-                    case (int)ast_app_layer::CommandType::START_TRANSACTION:
-                        {
-                            EVLOG_info << "START_TRANSACTION received.";
-                        }
-                        break;
-
-                    case (int)ast_app_layer::CommandType::STOP_TRANSACTION:
-                        {
-                            EVLOG_info << "STOP_TRANSACTION received.";
-                        }
-                        break;
-
-                    case (int)ast_app_layer::CommandType::TIME:
-                        {
-                            if (part_data_len < 5) break;
-                            device_data_obj.utc_time_s = get_u32(part_data);
-                            device_data_obj.gmt_offset_quarterhours = part_data[4];
-                            EVLOG_info << "(TIME) Not yet implemented. (diagnostics only)";
-                        }
-                        break;
-
-                    case (int)ast_app_layer::CommandType::GET_VOLTAGE_L1:
-                        {
-                            if (part_data_len < 4) break;
-                            types::units::Voltage volt = this->pm_last_values.voltage_V.value();
-                            volt.DC = (float)get_u32(part_data) / 100.0; // powermeter reports in 100 * [V]
-                            this->pm_last_values.voltage_V = volt;
-                            EVLOG_info << "GET_VOLTAGE_L1 received.";
-                        }
-                        break;
-
-                    case (int)ast_app_layer::CommandType::GET_CURRENT_L1:
-                        {
-                            if (part_data_len < 4) break;
-                            types::units::Current amp = this->pm_last_values.current_A.value();
-                            amp.DC = (float)get_u32(part_data) / 1000.0;  // powermeter reports in [mA]
-                            this->pm_last_values.current_A = amp;
-                            EVLOG_info << "GET_CURRENT_L1 received.";
-                        }
-                        break;
-
-                    case (int)ast_app_layer::CommandType::GET_IMPORT_DEV_POWER:
-                        {
-                            if (part_data_len < 4) break;
-                            types::units::Power power = this->pm_last_values.power_W.value();
-                            power.total = (float)get_u32(part_data) / 100.0;  // powermeter reports in [W * 100]
-                            this->pm_last_values.power_W = power;
-                            EVLOG_info << "GET_IMPORT_DEV_POWER received.";
-                        }
-                        break;
-
-                    case (int)ast_app_layer::CommandType::GET_EXPORT_DEV_POWER:
-                        {
-                            EVLOG_info << "(GET_EXPORT_DEV_POWER) Not yet implemented. [" << (float)get_u32(part_data) / 100.0  /* powermeter reports in [W * 100] */ << " W]";
-                        }
-                        break;
-
-                    case (int)ast_app_layer::CommandType::GET_TOTAL_DEV_POWER:
-                        {
-                            EVLOG_info << "(GET_TOTAL_DEV_POWER) Not yet implemented. [" << (float)get_u32(part_data) / 100.0  /* powermeter reports in [W * 100] */ << " W]";
-                        }
-                        break;
-
-                    case (int)ast_app_layer::CommandType::GET_TOTAL_IMPORT_DEV_ENERGY:
-                        {
-                            if (part_data_len < 8) break;
-                            types::units::Energy energy_in = this->pm_last_values.energy_Wh_import;
-                            energy_in.total = (float)get_u64(part_data) / 10.0;  // powermeter reports in [Wh * 10]
-                            this->pm_last_values.energy_Wh_import = energy_in;
-
-                            device_data_obj.total_dev_import_energy_Wh = get_u64(part_data) / 10.0;  // powermeter reports in [Wh * 10]
-                            EVLOG_info << "GET_TOTAL_IMPORT_DEV_ENERGY received.";
-                        }
-                        break;
-
-                    case (int)ast_app_layer::CommandType::GET_TOTAL_EXPORT_DEV_ENERGY:
-                        {
-                            if (part_data_len < 8) break;
-                            types::units::Energy energy_out{};
-                            if (this->pm_last_values.energy_Wh_export.has_value()) {
-                                energy_out = this->pm_last_values.energy_Wh_export.value();
-                            }
-                            energy_out.total = (float)get_u64(part_data) / 10.0;  // powermeter reports in [Wh * 10]
-                            this->pm_last_values.energy_Wh_export = energy_out;
-
-                            device_data_obj.total_dev_export_energy_Wh = get_u64(part_data) / 10.0;  // powermeter reports in [Wh * 10]
-                            EVLOG_info << "(GET_TOTAL_EXPORT_DEV_ENERGY) Not yet implemented. (diagnostics only)";
-                        }
-                        break;
-
-                    case (int)ast_app_layer::CommandType::GET_TOTAL_START_IMPORT_DEV_ENERGY:
-                        {
-                            if (part_data_len < 8) break;
-                            device_data_obj.total_start_import_energy_Wh = get_u64(part_data) / 10.0;  // powermeter reports in [Wh * 10]
-                            EVLOG_info << "(GET_TOTAL_START_IMPORT_DEV_ENERGY) Not yet implemented. (diagnostics only)";
-                        }
-                        break;
-
-                    case (int)ast_app_layer::CommandType::GET_TOTAL_STOP_IMPORT_DEV_ENERGY:
-                        {
-                            if (part_data_len < 8) break;
-                            device_data_obj.total_stop_import_energy_Wh = get_u64(part_data) / 10.0;  // powermeter reports in [Wh * 10]
-                            EVLOG_info << "(GET_TOTAL_STOP_IMPORT_DEV_ENERGY) Not yet implemented. (diagnostics only)";   
-                        }
-                        break;
-
-                    case (int)ast_app_layer::CommandType::GET_TOTAL_START_EXPORT_DEV_ENERGY:
-                        {
-                            if (part_data_len < 8) break;
-                            device_data_obj.total_start_export_energy_Wh = get_u64(part_data) / 10.0;  // powermeter reports in [Wh * 10]
-                            EVLOG_info << "(GET_TOTAL_START_EXPORT_DEV_ENERGY) Not yet implemented. (diagnostics only)";   
-                        }
-                        break;
-
-                    case (int)ast_app_layer::CommandType::GET_TOTAL_STOP_EXPORT_DEV_ENERGY:
-                        {
-                            if (part_data_len < 8) break;
-                            device_data_obj.total_stop_export_energy_Wh = get_u64(part_data) / 10.0;  // powermeter reports in [Wh * 10]
-                            EVLOG_info << "(GET_TOTAL_STOP_EXPORT_DEV_ENERGY) Not yet implemented. (diagnostics only)";
-                        }
-                        break;
-
-                    case (int)ast_app_layer::CommandType::GET_TRANSACT_TOTAL_DURATION:
-                        {
-                            if (part_data_len < 4) break;
-                            device_data_obj.total_transaction_duration_s = get_u32(part_data);
-                            EVLOG_info << "(GET_TRANSACT_TOTAL_DURATION) Not yet implemented. (diagnostics only)";
-                        }
-                        break;
-
-                    case (int)ast_app_layer::CommandType::GET_PUBKEY_STR16:
-                        {
-                            if (part_data_len < 129) break;
-                            device_diagnostics_obj.pubkey_str16_format = part_data[0];
-                            device_diagnostics_obj.pubkey_str16 = get_str(part_data, 1, 129);
-                            EVLOG_info << "(GET_PUBKEY_STR16) Not yet implemented. (diagnostics only)";
-                        }
-                        break;
-
-                    case (int)ast_app_layer::CommandType::GET_PUBKEY_ASN1:
-                        {
-                            if (part_data_len < 176) break;
-                            device_diagnostics_obj.pubkey_asn1 = get_str(part_data, 0, 176);
-                            EVLOG_info << "(GET_PUBKEY_ASN1) Not yet implemented. (diagnostics only)";
-                        }
-                        break;
-
-                    case (int)ast_app_layer::CommandType::REQUEST_METER_PUBKEY:
-                        {
-                            if (part_data_len < 65) break;
-                            device_diagnostics_obj.pubkey_format = part_data[0];
-                            device_diagnostics_obj.pubkey = get_str(part_data, 1, 65);
-                            EVLOG_info << "(REQUEST_METER_PUBKEY) Not yet implemented. (diagnostics only)";
-                        }
-                        break;
-
-                // diagnostics
-
-                    case (int)ast_app_layer::CommandType::OCMF_STATS:
-                        {
-                            if (part_data_len < 16) break;
-                            device_data_obj.ocmf_stats.number_transactions = get_u32(part_data);
-                            device_data_obj.ocmf_stats.timestamp_first_transaction = get_u32(part_data, 5);
-                            device_data_obj.ocmf_stats.timestamp_last_transaction = get_u32(part_data, 9);
-                            device_data_obj.ocmf_stats.max_number_of_transactions = get_u32(part_data, 13);
-                            EVLOG_info << "(OCMF_STATS) Not yet implemented. (diagnostics only)";
-                        }
-                        break;
-
-                    case (int)ast_app_layer::CommandType::GET_OCMF:
-                        {
-                            if (part_data_len < 16) break;
-                            device_data_obj.requested_ocmf = get_str(part_data, 0, part_data_len);
-                            EVLOG_info << "(GET_OCMF) Not yet implemented. (diagnostics only)";
-                        }
-                        break;
-
-                    case (int)ast_app_layer::CommandType::GET_LAST_OCMF:
-                        {
-                            device_data_obj.last_ocmf_transaction = get_str(part_data, 0, part_data_len);
-                            this->last_ocmf_str = device_data_obj.last_ocmf_transaction;
-                            EVLOG_info << "GET_LAST_OCMF received.";
-                        }
-                        break;
-
-                    case (int)ast_app_layer::CommandType::OCMF_INFO:
-                        {
-                            if (part_data_len < 1) break;
-
-                            // gateway_id
-                            if (part_data_len < part_data[0]) break;  // error, data too short
-                            uint8_t length_gateway_id = part_data[0];
-                            if (length_gateway_id > 18) length_gateway_id = 18; // max length
-                            device_data_obj.ocmf_info.gateway_id = get_str(part_data, 1, length_gateway_id);
-
-                            // manufacturer
-                            if (part_data_len < (length_gateway_id + part_data[length_gateway_id])) break;  // error, data too short
-                            uint8_t length_manufacturer = part_data[length_gateway_id];
-                            if (length_manufacturer > 4) length_manufacturer = 4; // max length
-                            device_data_obj.ocmf_info.manufacturer = get_str(part_data, length_gateway_id, length_manufacturer);
-
-                            // model
-                            if (part_data_len < (length_gateway_id + length_manufacturer + part_data[length_gateway_id + length_manufacturer])) break;  // error, data too short
-                            uint8_t length_model = part_data[length_gateway_id + length_manufacturer];
-                            if (length_model > 18) length_model = 18; // max length
-                            device_data_obj.ocmf_info.model = get_str(part_data, (length_gateway_id + length_manufacturer), length_model);
-                            
-                            EVLOG_info << "(OCMF_INFO) Not yet implemented. (diagnostics only)";
-                        }
-                        break;
-
-                    case (int)ast_app_layer::CommandType::OCMF_CONFIG:
-                        {
-                            if (part_data_len < 16) break;
-                            ocmf_config_table.clear();
-                            for (uint8_t n = 0; n < 16; n++) {
-                                ocmf_config_table.push_back(part_data[n]);
-                            }
-                            EVLOG_info << "(OCMF_CONFIG) Not yet implemented. (diagnostics only)";
-                        }
-                        break;
-
-                    case (int)ast_app_layer::CommandType::CHARGE_POINT_ID:
-                        {
-                            if (part_data_len < 14) break;
-                            device_diagnostics_obj.charge_point_id_type = part_data[0];
-                            device_diagnostics_obj.charge_point_id = get_str(part_data, 1, 13);
-                            EVLOG_info << "(CHARGE_POINT_ID) Not yet implemented. (diagnostics only)";
-                        }
-                        break;
-
-                    case (int)ast_app_layer::CommandType::GET_ERRORS:
-                        {
-                            if (part_data_len < 50) break;
-                            uint j = 0;
-                            for (uint8_t i = 0; i < 5; i++) {
-                                j = i * 10;
-                                logging_obj.source[(uint8_t)source_requested].category[(uint8_t)category_requested].error[i].id       = get_u32(part_data, j);
-                                logging_obj.source[(uint8_t)source_requested].category[(uint8_t)category_requested].error[i].priority = get_u16(part_data, j + 4);
-                                logging_obj.source[(uint8_t)source_requested].category[(uint8_t)category_requested].error[i].counter  = get_u32(part_data, j + 6);
-                            }
-                            EVLOG_info << "(GET_ERRORS) Not yet implemented. (diagnostics only)";
-                        }
-                        break;
-
-                    case (int)ast_app_layer::CommandType::GET_LOG_STATS:
-                        {
-                            if (part_data_len < 16) break;
-                            device_diagnostics_obj.log_stats.number_log_entries  = get_u32(part_data);
-                            device_diagnostics_obj.log_stats.timestamp_first_log = get_u32(part_data, 5);
-                            device_diagnostics_obj.log_stats.timestamp_last_log  = get_u32(part_data, 9);
-                            device_diagnostics_obj.log_stats.max_number_of_logs  = get_u32(part_data, 13);
-                            EVLOG_info << "(GET_LOG_STATS) Not yet implemented. (diagnostics only)";
-                        }
-                        break;
-
-                    case (int)ast_app_layer::CommandType::GET_LOG_ENTRY:
-                        {
-                            EVLOG_info << "(GET_LOG_ENTRY) Not yet implemented.";
-                        }
-                        break;
-
-                    case (int)ast_app_layer::CommandType::GET_LAST_LOG_ENTRY:
-                        {
-                            if (part_data_len < 104) break;
-                            logging_obj.last_log.type         = static_cast<ast_app_layer::LogType>(part_data[0]);
-                            logging_obj.last_log.second_index = get_u32(part_data, 1);
-                            logging_obj.last_log.utc_time     = get_u32(part_data, 5);
-                            logging_obj.last_log.utc_offset   = part_data[9];
-                            for (uint8_t n = 10; n < 20; n++){
-                                logging_obj.last_log.old_value.push_back(part_data[n]);
-                            }
-                            for (uint8_t n = 20; n < 30; n++){
-                                logging_obj.last_log.new_value.push_back(part_data[n]);
-                            }
-                            for (uint8_t n = 30; n < 40; n++){
-                                logging_obj.last_log.server_id.push_back(part_data[n]);
-                            }
-                            for (uint8_t n = 40; n < 104; n++){
-                                logging_obj.last_log.signature.push_back(part_data[n]);
-                            }
-                            EVLOG_info << "(GET_LAST_LOG_ENTRY) Not yet implemented. (diagnostics only)";
-                        }
-                        break;
-
-                    case (int)ast_app_layer::CommandType::GET_LOG_ENTRY_REVERSE:
-                        {
-                            EVLOG_info << "(GET_LOG_ENTRY_REVERSE) Not yet implemented.";
-                        }
-                        break;
-
-                // device parameters
-
-                    case (int)ast_app_layer::CommandType::AB_MODE_SET:
-                        {
-                            if (part_data_len < 1) break;
-                            device_diagnostics_obj.app_board.mode = part_data[0];
-                            EVLOG_info << "(AB_MODE_SET) Not yet implemented. (diagnostics only)";
-                        }
-                        break;
-
-                    case (int)ast_app_layer::CommandType::AB_HW_VERSION:
-                        {
-                            if (part_data_len < 41) break;
-                            device_diagnostics_obj.app_board.hw_ver = get_str(part_data, 0, 20);
-                            device_diagnostics_obj.m_board.hw_ver   = get_str(part_data, 21, 20);
-                            EVLOG_info << "(AB_HW_VERSION) Not yet implemented. (diagnostics only)";
-                        }
-                        break;
-
-                    case (int)ast_app_layer::CommandType::AB_SERVER_ID:
-                        {
-                            if (part_data_len < 10) break;
-                            device_diagnostics_obj.app_board.server_id = get_str(part_data, 0, 10);
-                            EVLOG_info << "(AB_SERVER_ID) Not yet implemented. (diagnostics only)";
-                        }
-                        break;
-
-                    case (int)ast_app_layer::CommandType::AB_SERIAL_NR:
-                        {
-                            if (part_data_len < 4) break;
-                            device_diagnostics_obj.app_board.serial_number = get_u32(part_data);
-                            EVLOG_info << "(AB_SERIAL_NR) Not yet implemented. (diagnostics only)";
-                        }
-                        break;
-
-                    case (int)ast_app_layer::CommandType::AB_SW_VERSION:
-                        {
-                            if (part_data_len < 20) break;
-                            device_diagnostics_obj.app_board.sw_ver = get_str(part_data, 0, 20);
-                            EVLOG_info << "(AB_SW_VERSION) Not yet implemented. (diagnostics only)";
-                        }
-                        break;
-
-                    case (int)ast_app_layer::CommandType::AB_FW_CHECKSUM:
-                        {
-                            if (part_data_len < 2) break;
-                            device_diagnostics_obj.app_board.fw_crc = get_u16(part_data);
-                            EVLOG_info << "(AB_FW_CHECKSUM) Not yet implemented. (diagnostics only)";
-                        }
-                        break;
-
-                    case (int)ast_app_layer::CommandType::AB_FW_HASH:
-                        {
-                            if (part_data_len < 2) break;
-                            device_diagnostics_obj.app_board.fw_hash = get_u16(part_data);
-                            EVLOG_info << "(AB_FW_HASH) Not yet implemented. (diagnostics only)";
-                        }
-                        break;
-
-                    case (int)ast_app_layer::CommandType::MB_SW_VERSION:
-                        {
-                            if (part_data_len < 20) break;
-                            device_diagnostics_obj.m_board.sw_ver = get_str(part_data, 0, 20);
-                            EVLOG_info << "(MB_SW_VERSION) Not yet implemented. (diagnostics only)";
-                        }
-                        break;
-
-                    case (int)ast_app_layer::CommandType::MB_FW_CHECKSUM:
-                        {
-                            if (part_data_len < 2) break;
-                            device_diagnostics_obj.m_board.fw_crc = get_u16(part_data);
-                            EVLOG_info << "(MB_FW_CHECKSUM) Not yet implemented. (diagnostics only)";
-                        }
-                        break;
-
-                    case (int)ast_app_layer::CommandType::AB_DEVICE_TYPE:
-                        {
-                            if (part_data_len < 18) break;
-                            device_diagnostics_obj.app_board.type = get_str(part_data, 0, 18);
-                            EVLOG_error << "AB_DEVICE_TYPE received: " << device_diagnostics_obj.app_board.type;
-                        }
-                        break;
-
-                    case (int)ast_app_layer::CommandType::AB_STATUS:
-                        {
-                            if (part_data_len < 8) break;
-                            device_data_obj.status = get_u64(part_data);
-                            EVLOG_info << "AB_STATUS received: " << device_data_obj.status;
-                        }
-                        break;
-
-                // not (yet) implemented
-
-                    case (int)ast_app_layer::CommandType::RESET_DC_METER:
-                    case (int)ast_app_layer::CommandType::MEASUREMENT_MODE:
-                    case (int)ast_app_layer::CommandType::GET_NORMAL_VOLTAGE:
-                    case (int)ast_app_layer::CommandType::GET_NORMAL_CURRENT:
-                    case (int)ast_app_layer::CommandType::GET_MAX_CURRENT:
-                    case (int)ast_app_layer::CommandType::LINE_LOSS_IMPEDANCE:
-                    case (int)ast_app_layer::CommandType::LINE_LOSS_MEAS_MODE:
-                    case (int)ast_app_layer::CommandType::TEMPERATURE:
-                    case (int)ast_app_layer::CommandType::METER_BUS_ADDR:
-                    case (int)ast_app_layer::CommandType::GET_OCMF_REVERSE:
-                    case (int)ast_app_layer::CommandType::GET_PUBKEY_BIN:
-                    case (int)ast_app_layer::CommandType::GET_TRANSACT_IMPORT_LINE_LOSS_ENERGY:
-                    case (int)ast_app_layer::CommandType::GET_TRANSACT_EXPORT_LINE_LOSS_ENERGY:
-                    case (int)ast_app_layer::CommandType::GET_TRANSACT_TOTAL_IMPORT_DEV_ENERGY:
-                    case (int)ast_app_layer::CommandType::GET_TRANSACT_TOTAL_EXPORT_DEV_ENERGY:
-                    case (int)ast_app_layer::CommandType::GET_TRANSACT_TOTAL_IMPORT_MAINS_ENERGY:
-                    case (int)ast_app_layer::CommandType::GET_TRANSACT_TOTAL_EXPORT_MAINS_ENERGY:
-                    case (int)ast_app_layer::CommandType::GET_TOTAL_START_IMPORT_LINE_LOSS_ENERGY:
-                    case (int)ast_app_layer::CommandType::GET_TOTAL_START_EXPORT_LINE_LOSS_ENERGY:
-                    case (int)ast_app_layer::CommandType::GET_TOTAL_START_IMPORT_MAINS_ENERGY:
-                    case (int)ast_app_layer::CommandType::GET_TOTAL_START_EXPORT_MAINS_ENERGY:
-                    case (int)ast_app_layer::CommandType::GET_TOTAL_STOP_IMPORT_LINE_LOSS_ENERGY:
-                    case (int)ast_app_layer::CommandType::GET_TOTAL_STOP_EXPORT_LINE_LOSS_ENERGY:
-                    case (int)ast_app_layer::CommandType::GET_TOTAL_STOP_IMPORT_MAINS_ENERGY:
-                    case (int)ast_app_layer::CommandType::GET_TOTAL_STOP_EXPORT_MAINS_ENERGY:
-                    case (int)ast_app_layer::CommandType::REGISTER_DISPLAY_PUBKEY:
-                    case (int)ast_app_layer::CommandType::REQUEST_CHALLENGE:
-                    case (int)ast_app_layer::CommandType::SET_SIGNED_CHALLENGE:
-                    case (int)ast_app_layer::CommandType::GET_TOTAL_IMPORT_MAINS_ENERGY:
-                    case (int)ast_app_layer::CommandType::GET_TOTAL_EXPORT_MAINS_ENERGY:
-                    case (int)ast_app_layer::CommandType::GET_TOTAL_IMPORT_MAINS_POWER:
-                    case (int)ast_app_layer::CommandType::GET_TOTAL_EXPORT_MAINS_POWER:
-                    case (int)ast_app_layer::CommandType::GET_DEV_VOLTAGE_L1:
-                    case (int)ast_app_layer::CommandType::GET_IMPORT_LINE_LOSS_POWER:
-                    case (int)ast_app_layer::CommandType::GET_EXPORT_LINE_LOSS_POWER:
-                    case (int)ast_app_layer::CommandType::GET_TOTAL_IMPORT_LINE_LOSS_ENERGY:
-                    case (int)ast_app_layer::CommandType::GET_TOTAL_EXPORT_LINE_LOSS_ENERGY:
-                    case (int)ast_app_layer::CommandType::GET_SECOND_INDEX:
-                    case (int)ast_app_layer::CommandType::GET_PUBKEY_STR32:
-                    case (int)ast_app_layer::CommandType::GET_PUBKEY_CSTR16:
-                    case (int)ast_app_layer::CommandType::GET_PUBKEY_CSTR32:
-                    case (int)ast_app_layer::CommandType::REPEAT_DATA:
-                    case (int)ast_app_layer::CommandType::AB_DMC:
-                    case (int)ast_app_layer::CommandType::AB_PROD_DATE:
-                    case (int)ast_app_layer::CommandType::SET_REQUEST_CHALLENGE:
-                        {
-                            EVLOG_error << "Command not (yet) implemented. (" << hexdump_u16(part_cmd) << ")";
-                        }
-                        break;
-
-                    default:
-                        {
-                            EVLOG_error << "Command ID invalid. (" << hexdump_u16(part_cmd) << ")";
-                        }
-                        break;
-                }
-
-            } else {
-                EVLOG_error << "Error: Malformed data.";
-            }
-            i += part_len;
-        }
-
-        // publish powermeter values
-        this->publish_powermeter(this->pm_last_values);
+        i += part_len;
     }
+
+    // publish powermeter values
+    this->publish_powermeter(this->pm_last_values);
+
     return response_status;
 }
 
 ast_app_layer::CommandResult powermeterImpl::receive_response() {
+    ast_app_layer::CommandResult retval = ast_app_layer::CommandResult::OK;
     std::vector<uint8_t> response{};
     response.reserve(ast_app_layer::PM_AST_MAX_RX_LENGTH);
     this->serial_device.rx(response, ast_app_layer::PM_AST_SERIAL_RX_INITIAL_TIMEOUT_MS, ast_app_layer::PM_AST_SERIAL_RX_WITHIN_MESSAGE_TIMEOUT_MS);
@@ -996,11 +992,20 @@ ast_app_layer::CommandResult powermeterImpl::receive_response() {
     EVLOG_critical << "\n\nRECEIVE: " << hexdump(response) << " length: " << response.size() << "\n\n";
     
     if (response.size() >= 5) {
-        return process_response(std::move(this->slip.unpack(response)));
+        ast_app_layer::CommandResult result{};
+        this->slip.unpack(response);
+        while (this->slip.get_message_counter() > 0) {
+            std::vector<uint8_t> message_from_queue = std::move(this->slip.retrieve_single_message());
+            result = process_response(message_from_queue);
+            if (result != ast_app_layer::CommandResult::OK) {  // always report (at least one) error instead of OK, if available
+                retval = result;
+            }
+        }
     } else {
         EVLOG_info << "Received partial message. Skipping. [" << hexdump(response) << "]";
         return ast_app_layer::CommandResult::COMMUNICATION_FAILED;
     }
+    return retval;
 }
 
 // ############################################################################################################################################
@@ -1008,6 +1013,7 @@ ast_app_layer::CommandResult powermeterImpl::receive_response() {
 // ############################################################################################################################################
 
 int powermeterImpl::handle_start_transaction(types::powermeter::TransactionParameters& transaction_parameters) {
+    this->start_transact_result = ast_app_layer::CommandResult::PENDING;
     ast_app_layer::UserIdStatus user_id_status = ast_app_layer::UserIdStatus::USER_NOT_ASSIGNED;
     if (transaction_parameters.transaction_assigned_to_user) {
         user_id_status = ast_app_layer::UserIdStatus::USER_ASSIGNED;
@@ -1028,25 +1034,40 @@ int powermeterImpl::handle_start_transaction(types::powermeter::TransactionParam
     std::vector<uint8_t> slip_msg_start_transaction = std::move(this->slip.package_single(this->config.powermeter_device_id, data_vect));
 
     this->serial_device.tx(slip_msg_start_transaction);
-    ast_app_layer::CommandResult result = receive_response();
+    this->start_transaction_msg_status = MessageStatus::SENT;
+    Timeout timeout(TIMEOUT_2s);
+    while (this->start_transaction_msg_status != MessageStatus::RECEIVED) {
+        receive_response();
+        if(timeout.reached()) {
+            this->stop_transact_result = ast_app_layer::CommandResult::TIMEOUT;
+        }
+    }
 
-    if (result != ast_app_layer::CommandResult::OK) {
-        return -1 * int(result);  // error
+    if (this->start_transact_result != ast_app_layer::CommandResult::OK) {
+        return -1 * int(this->start_transact_result);  // error
     } else {
         return 0;
     }
 }
 
 int powermeterImpl::handle_stop_transaction() {
+    this->stop_transact_result = ast_app_layer::CommandResult::PENDING;
     std::vector<uint8_t> data_vect{};
     app_layer.create_command_stop_transaction(data_vect);
     std::vector<uint8_t> slip_msg_stop_transaction = std::move(this->slip.package_single(this->config.powermeter_device_id, data_vect));
 
     this->serial_device.tx(slip_msg_stop_transaction);
-    ast_app_layer::CommandResult result = receive_response();
+    this->stop_transaction_msg_status = MessageStatus::SENT;
+    Timeout timeout(TIMEOUT_2s);
+    while (this->stop_transaction_msg_status != MessageStatus::RECEIVED) {
+        receive_response();
+        if(timeout.reached()) {
+            this->stop_transact_result = ast_app_layer::CommandResult::TIMEOUT;
+        }
+    }
 
-    if (result != ast_app_layer::CommandResult::OK) {
-        return -1 * int(result);  // error
+    if (this->stop_transact_result != ast_app_layer::CommandResult::OK) {
+        return -1 * int(this->stop_transact_result);  // error
     } else {
         return 0;
     }
@@ -1058,11 +1079,18 @@ std::string powermeterImpl::handle_get_signed_meter_value(std::string& auth_toke
     std::vector<uint8_t> slip_msg_get_last_ocmf = std::move(this->slip.package_single(this->config.powermeter_device_id, data_vect));
 
     this->serial_device.tx(slip_msg_get_last_ocmf);
-    ast_app_layer::CommandResult result = receive_response();
+    this->get_transaction_values_msg_status = MessageStatus::SENT;
+    Timeout timeout(TIMEOUT_2s);
+    while (this->get_transaction_values_msg_status != MessageStatus::RECEIVED) {
+        receive_response();
+        if(timeout.reached()) {
+            this->stop_transact_result = ast_app_layer::CommandResult::TIMEOUT;
+        }
+    }
 
-    if (result != ast_app_layer::CommandResult::OK) {
+    if (this->stop_transact_result != ast_app_layer::CommandResult::OK) {
         std::stringstream ss;
-        ss << "Error: command failed with code " << int(result) << ". (" << command_result_to_string(result) << ")";
+        ss << "Error: command failed with code " << int(this->stop_transact_result) << ". (" << command_result_to_string(this->stop_transact_result) << ")";
         return ss.str();
     }
 

@@ -38,6 +38,35 @@ static std::string hexdump_u16(uint16_t msg) {
     return ss.str();
 }
 
+inline void remove_start_and_stop_frame(std::vector<uint8_t>& vec) {
+    vec.erase(vec.begin());
+    vec.pop_back();
+}
+
+inline bool is_message_crc_correct(std::vector<uint8_t>& vec) {
+    uint16_t crc_check = uint16_t( (vec[vec.size() - 1] << 8) | vec[vec.size() - 2] );
+    // remove CRC tail from vector
+    for (uint8_t i = 0; i < 2; i++) {
+        vec.pop_back();
+    }
+    uint16_t crc_calc = calculate_xModem_crc16(vec);
+    if (crc_check == crc_calc) {
+        return true;
+    }
+    return false;
+}
+
+inline void restore_special_characters(std::vector<uint8_t>& vec) {
+    for (uint16_t j = 0; j < (vec.size() - 1); j++) {  // can only go to vec.size() - 1 because two bytes will be checked
+        if ((vec.at(j) == 0xDB) && (vec.at(j + 1) == 0xDC)) {
+            vec.at(j) = 0xC0;
+            vec.erase(vec.begin() + j + 1);
+        } else if ((vec.at(j) == 0xDB) && (vec.at(j + 1) == 0xDD)) {
+            vec.at(j) = 0xDB;
+            vec.erase(vec.begin() + j + 1);
+        }
+    }
+}
 
 std::vector<uint8_t> SlipProtocol::package_single(const uint8_t address, const std::vector<uint8_t>& payload) {
     std::vector<uint8_t> vec{};
@@ -84,43 +113,97 @@ std::vector<uint8_t> SlipProtocol::package_multi(const uint8_t address, const st
     return std::move(this->package_single(address, payload));
 }
 
-std::vector<uint8_t> SlipProtocol::unpack(std::vector<uint8_t>& message) {
+SlipReturnStatus SlipProtocol::unpack(std::vector<uint8_t>& message) {
+    SlipReturnStatus retval = SlipReturnStatus::SLIP_ERROR_UNINITIALIZED;
     std::vector<uint8_t> data{};
-    uint16_t crc_calc = 0;
-    uint16_t crc_check = 0xFFFF;
+    uint8_t message_part_counter = 0;
+    uint8_t message_start_end_frame_counter = 0;
 
     if (message.size() < 1) {
-        return SLIP_ERROR_SIZE_ERROR;
+        return SlipReturnStatus::SLIP_ERROR_SIZE_ERROR;
     }
-    if (message.at(0) != SLIP_START_END_FRAME) {
-        return SLIP_ERROR_MALFORMED; 
-    } else {
-        message.erase(message.begin());
-        crc_check = uint16_t( (message[message.size() - 2] << 8) | message[message.size() - 3] );
-        // remove CRC and end frame
-        for (uint8_t i = 0; i < 3; i++) {
-            message.pop_back();
+
+    // count number of SLIP_START_END_FRAMEs to check for multiple (or broken) messages
+    for (uint16_t n = 0; n < message.size(); n++) { 
+        if (message.at(n) == SLIP_START_END_FRAME) {
+            message_start_end_frame_counter++;
         }
     }
 
-    crc_calc = calculate_xModem_crc16(message);
-    if (crc_check == crc_calc) {
-        // message intact, check for special characters and restore to original contents
-        for (uint16_t j = 0; j < (message.size() - 1); j++) {  // can only go to message.size() - 1 because two bytes will be checked
-            if ((message.at(j) == 0xDB) && (message.at(j + 1) == 0xDC)) {
-                message.at(j) = 0xC0;
-                message.erase(message.begin() + j + 1);
-            } else if ((message.at(j) == 0xDB) && (message.at(j + 1) == 0xDD)) {
-                message.at(j) = 0xDB;
-                message.erase(message.begin() + j + 1);
+    if (message_start_end_frame_counter != 2) {  // unexpected/broken message -OR- multiple messages received
+
+        // split message vector into sub-vectors by delimiter
+        std::vector<std::vector<uint8_t>> sub_messages{};
+        std::vector<uint8_t> current_sub_message{};
+        for (uint16_t n = 0; n < message.size(); n++) {
+            if (message.at(n) == SLIP_START_END_FRAME) { 
+                if (current_sub_message.size() > 0) {
+                    sub_messages.push_back(current_sub_message);
+                    current_sub_message.clear();
+                } else {
+                    // intentionally do nothing on empty sub_message
+                }
+            } else {
+                current_sub_message.push_back(message.at(n));
             }
         }
-        return message;
-    } else {
-        data = SLIP_ERROR_CRC_MISMATCH;
-    }
 
-    return std::move(data);
+        // from here on, we have all message parts as elements in sub_messages
+        for (auto sub_message : sub_messages) {
+            // check all sub-messages' CRC and only process on match
+            if (is_message_crc_correct(sub_message)) {
+                // on correct CRC
+                restore_special_characters(message);
+                this->message_queue.push_back(message);
+                this->message_counter++;
+                if (retval == SlipReturnStatus::SLIP_ERROR_UNINITIALIZED) {  // only set SLIP_OK if no other error
+                    retval = SlipReturnStatus::SLIP_OK;
+                }
+            } else {
+                retval = SlipReturnStatus::SLIP_ERROR_MALFORMED;
+                EVLOG_error << "Malformed message received!";
+            }
+        }
+    } else {  // single message received
+
+        // check if last element is SLIP_START_END_FRAME and if not, reduce message size
+        while (message.at(message.size() - 1) != SLIP_START_END_FRAME) {
+            if (message.size() <= 3) break;
+            message.pop_back();
+        }
+
+        if (message.size() > 3) {
+            remove_start_and_stop_frame(message);
+            if (is_message_crc_correct(message)) {
+                // message intact, check for special characters and restore to original contents
+                restore_special_characters(message);
+                this->message_queue.push_back(message);
+                this->message_counter++;
+                retval = SlipReturnStatus::SLIP_OK;
+            } else {
+                retval = SlipReturnStatus::SLIP_ERROR_CRC_MISMATCH;
+                EVLOG_error << "CRC mismatch!";
+            }
+        } else {
+            retval = SlipReturnStatus::SLIP_ERROR_SIZE_ERROR;
+            EVLOG_error << "Message broken: too short!";
+        }
+    }
+    return retval;
+}
+
+uint8_t SlipProtocol::get_message_counter() {
+    return this->message_counter;
+}
+
+std::vector<uint8_t> SlipProtocol::retrieve_single_message() {
+    if (this->message_queue.size() > 0) {
+        this->message_counter--;
+        auto ret_vec = std::move(this->message_queue.back());
+        this->message_queue.pop_back();
+        return std::move(ret_vec);
+    }
+    return std::move(std::vector<uint8_t>{});
 }
 
 } // namespace slip_protocol

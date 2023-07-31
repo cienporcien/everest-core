@@ -21,9 +21,17 @@ constexpr int SLIP_BROADCAST_ADDR = 0xFF;
 
 constexpr uint16_t SLIP_SIZE_ON_ERROR = 1;
 
-const std::vector<uint8_t> SLIP_ERROR_SIZE_ERROR = {0x0A};
-const std::vector<uint8_t> SLIP_ERROR_MALFORMED = {0x0B};
-const std::vector<uint8_t> SLIP_ERROR_CRC_MISMATCH = {0x0E};
+constexpr int8_t SLIP_ERROR_SIZE_ERROR = -1;
+constexpr int8_t SLIP_ERROR_MALFORMED = -2;
+constexpr int8_t SLIP_ERROR_CRC_MISMATCH = -3;
+
+enum class SlipReturnStatus : std::int8_t {
+    SLIP_ERROR_CRC_MISMATCH = -3,
+    SLIP_ERROR_MALFORMED = -2,
+    SLIP_ERROR_SIZE_ERROR = -1,
+    SLIP_OK = 0,
+    SLIP_ERROR_UNINITIALIZED = 1
+};
 
 class SlipProtocol {
 
@@ -34,9 +42,13 @@ public:
     std::vector<uint8_t> package_single(const uint8_t address, const std::vector<uint8_t>& payload);
     std::vector<uint8_t> package_multi(const uint8_t address, const std::vector<std::vector<uint8_t>>& multi_payload);
 
-    std::vector<uint8_t> unpack(std::vector<uint8_t>& message);
+    SlipReturnStatus unpack(std::vector<uint8_t>& message);
+    uint8_t get_message_counter();
+    std::vector<uint8_t> retrieve_single_message();
 
-// private:
+private:
+    std::vector<std::vector<uint8_t>> message_queue{};
+    uint8_t message_counter{0};
     
 };
 

@@ -130,7 +130,9 @@ enum class CommandResult : std::uint8_t {
     BUSY = 8,                           // transaction ongoing, metering board unavailable
     PUBLIC_KEY_MISSING = 9,             //
     PROTOCOL_ERROR = 250,               // error on reception at host: protocol error (SLIP protocol)
-    COMMUNICATION_FAILED = 254          // error on communication between PM and host device
+    TIMEOUT = 251,                      // no response during at least 1100 ms
+    COMMUNICATION_FAILED = 254,         // error on communication between PM and host device
+    PENDING = 255                       // special state for transaction commands
 };
 
 inline std::string command_result_to_string(CommandResult res) {

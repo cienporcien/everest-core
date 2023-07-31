@@ -15,9 +15,9 @@
 // ev@75ac1216-19eb-4182-a85c-820f1fc2c091:v1
 // insert your custom include headers here
 #include "ast_app_layer.hpp"
+#include "diagnostics.hpp"
 #include "serial_device.hpp"
 #include "slip_protocol.hpp"
-#include "diagnostics.hpp"
 // ev@75ac1216-19eb-4182-a85c-820f1fc2c091:v1
 
 namespace module {
@@ -64,6 +64,18 @@ private:
     // ev@3370e4dd-95f4-47a9-aaec-ea76f34a66c9:v1
     // insert your private definitions here
 
+    enum class MessageStatus : std::uint8_t {
+        NONE = 0,
+        SENT = 1,
+        RECEIVED = 2
+    };
+
+    MessageStatus start_transaction_msg_status{MessageStatus::NONE};
+    ast_app_layer::CommandResult start_transact_result{};
+    MessageStatus stop_transaction_msg_status{MessageStatus::NONE};
+    ast_app_layer::CommandResult stop_transact_result{};
+    MessageStatus get_transaction_values_msg_status{MessageStatus::NONE};
+
     serial_device::SerialDevice serial_device{};
     slip_protocol::SlipProtocol slip{};
     ast_app_layer::AstAppLayer app_layer{};
@@ -93,6 +105,8 @@ private:
     void request_device_type();
     void error_diagnostics(uint8_t addr);
     ast_app_layer::CommandResult receive_response();
+
+    static constexpr auto TIMEOUT_2s{std::chrono::seconds(2)};
     // ev@3370e4dd-95f4-47a9-aaec-ea76f34a66c9:v1
 };
 
