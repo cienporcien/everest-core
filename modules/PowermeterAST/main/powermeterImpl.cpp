@@ -514,8 +514,16 @@ ast_app_layer::CommandResult powermeterImpl::process_response(const std::vector<
             if (part_status != ast_app_layer::CommandResult::OK) {
                 EVLOG_error << "Powermeter has signaled an error (\"" 
                             << ast_app_layer::command_result_to_string(part_status) 
-                            << "\")! Retrieving diagnostics data...";
-                error_diagnostics(dest_addr);
+                            << "\")!";
+
+                // do not process erroneous responses except for transaction related commands
+                if ((part_cmd != (int)ast_app_layer::CommandType::START_TRANSACTION) ||
+                    (part_cmd != (int)ast_app_layer::CommandType::STOP_TRANSACTION) ||
+                    (part_cmd != (int)ast_app_layer::CommandType::GET_LAST_OCMF)) {
+                    EVLOG_error << "Retrieving diagnostics data...";
+                    error_diagnostics(dest_addr);
+                    continue; 
+                }
             }
 
             // process response
