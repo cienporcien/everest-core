@@ -992,6 +992,7 @@ ast_app_layer::CommandResult powermeterImpl::process_response(const std::vector<
 }
 
 ast_app_layer::CommandResult powermeterImpl::receive_response() {
+    std::lock_guard<std::mutex> lock(this->serial_mutex);
     ast_app_layer::CommandResult retval = ast_app_layer::CommandResult::OK;
     std::vector<uint8_t> response{};
     response.reserve(ast_app_layer::PM_AST_MAX_RX_LENGTH);
@@ -1048,6 +1049,7 @@ int powermeterImpl::handle_start_transaction(types::powermeter::TransactionParam
         receive_response();
         if(timeout.reached()) {
             this->stop_transact_result = ast_app_layer::CommandResult::TIMEOUT;
+            break;
         }
     }
 
@@ -1071,6 +1073,7 @@ int powermeterImpl::handle_stop_transaction() {
         receive_response();
         if(timeout.reached()) {
             this->stop_transact_result = ast_app_layer::CommandResult::TIMEOUT;
+            break;
         }
     }
 
@@ -1093,6 +1096,7 @@ std::string powermeterImpl::handle_get_signed_meter_value(std::string& auth_toke
         receive_response();
         if(timeout.reached()) {
             this->stop_transact_result = ast_app_layer::CommandResult::TIMEOUT;
+            break;
         }
     }
 
