@@ -113,7 +113,7 @@ std::vector<uint8_t> SlipProtocol::package_multi(const uint8_t address, const st
     return std::move(this->package_single(address, payload));
 }
 
-SlipReturnStatus SlipProtocol::unpack(std::vector<uint8_t>& message) {
+SlipReturnStatus SlipProtocol::unpack(std::vector<uint8_t>& message, uint8_t listen_to_address) {
     SlipReturnStatus retval = SlipReturnStatus::SLIP_ERROR_UNINITIALIZED;
     std::vector<uint8_t> data{};
     uint8_t message_part_counter = 0;
@@ -121,6 +121,21 @@ SlipReturnStatus SlipProtocol::unpack(std::vector<uint8_t>& message) {
 
     if (message.size() < 1) {
         return SlipReturnStatus::SLIP_ERROR_SIZE_ERROR;
+    }
+
+    // check if first element is SLIP_START_END_FRAME and if not, drop first item(s) until start frame is first
+    uint8_t i = 0;
+    while (i < message.size()) {
+        if (message.at(i) == SLIP_START_END_FRAME) break;
+        i++;
+    }
+    if (i > 0) {
+        uint8_t j = 0;
+        while(message.size() > 0) {
+            if (j == i) break;
+            message.erase(message.begin());
+            j++;
+        }
     }
 
     // count number of SLIP_START_END_FRAMEs to check for multiple (or broken) messages
@@ -132,13 +147,21 @@ SlipReturnStatus SlipProtocol::unpack(std::vector<uint8_t>& message) {
 
     if (message_start_end_frame_counter != 2) {  // unexpected/broken message -OR- multiple messages received
 
-        // split message vector into sub-vectors by delimiter
+        // split message vector into sub-vectors by delimiter (SLIP_START_END_FRAME)
         std::vector<std::vector<uint8_t>> sub_messages{};
         std::vector<uint8_t> current_sub_message{};
         for (uint16_t n = 0; n < message.size(); n++) {
             if (message.at(n) == SLIP_START_END_FRAME) { 
                 if (current_sub_message.size() > 0) {
-                    sub_messages.push_back(current_sub_message);
+                    if (listen_to_address == 0xFF) {
+                        // listen_to_address is broadcast address: listen to all messages
+                        sub_messages.push_back(current_sub_message);
+                    } else {
+                        // dedicated client address selected, only listen to this address
+                        if (current_sub_message.at(0) == listen_to_address) { 
+                            sub_messages.push_back(current_sub_message);
+                        }
+                    }
                     current_sub_message.clear();
                 } else {
                     // intentionally do nothing on empty sub_message
@@ -166,23 +189,28 @@ SlipReturnStatus SlipProtocol::unpack(std::vector<uint8_t>& message) {
         }
     } else {  // single message received
 
-        // check if last element is SLIP_START_END_FRAME and if not, reduce message size
-        while (message.at(message.size() - 1) != SLIP_START_END_FRAME) {
-            if (message.size() <= 3) break;
-            message.pop_back();
-        }
-
         if (message.size() > 3) {
-            remove_start_and_stop_frame(message);
-            if (is_message_crc_correct(message)) {
-                // message intact, check for special characters and restore to original contents
-                restore_special_characters(message);
-                this->message_queue.push_back(message);
-                this->message_counter++;
-                retval = SlipReturnStatus::SLIP_OK;
+            // only process messages for correct client or if listen_to_address is broadcast address
+            if ((message.at(1) == listen_to_address) || (0xFF == listen_to_address)) {
+                // check if last element is SLIP_START_END_FRAME and if not, reduce message size
+                while (message.at(message.size() - 1) != SLIP_START_END_FRAME) {
+                    if (message.size() <= 3) break;
+                    message.pop_back();
+                }
+
+                remove_start_and_stop_frame(message);
+                if (is_message_crc_correct(message)) {
+                    // message intact, check for special characters and restore to original contents
+                    restore_special_characters(message);
+                    this->message_queue.push_back(message);
+                    this->message_counter++;
+                    retval = SlipReturnStatus::SLIP_OK;
+                } else {
+                    retval = SlipReturnStatus::SLIP_ERROR_CRC_MISMATCH;
+                    EVLOG_error << "CRC mismatch!";
+                }
             } else {
-                retval = SlipReturnStatus::SLIP_ERROR_CRC_MISMATCH;
-                EVLOG_error << "CRC mismatch!";
+                retval = SlipReturnStatus::SLIP_OK;
             }
         } else {
             retval = SlipReturnStatus::SLIP_ERROR_SIZE_ERROR;
