@@ -160,6 +160,7 @@ int SerialDevice::rx(std::vector<uint8_t>& rxbuf,
                 EVLOG_error << "Error reading from device: " << strerror(errno);
             }
         }
+        EVLOG_error << "blip";
     }
     return bytes_read_total;
 }
