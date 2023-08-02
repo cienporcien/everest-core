@@ -786,9 +786,9 @@ ast_app_layer::CommandResult powermeterImpl::process_response(const std::vector<
                             logging_obj.source[(uint8_t)source_requested].category[(uint8_t)category_requested].error[i].id       = get_u32(part_data, j);
                             logging_obj.source[(uint8_t)source_requested].category[(uint8_t)category_requested].error[i].priority = get_u16(part_data, j + 4);
                             logging_obj.source[(uint8_t)source_requested].category[(uint8_t)category_requested].error[i].counter  = get_u32(part_data, j + 6);
-                            EVLOG_error << "Error #" << i << " for source (" << (uint8_t)source_requested << ") and category (" << (uint8_t)category_requested 
+                            EVLOG_error << "Error #" << (int)i << " for source (" << (int)source_requested << ") and category (" << (int)category_requested 
                                         << "):\nID:      " << get_u32(part_data, j)
-                                        << "\nPrio:    " << get_u32(part_data, j + 4)
+                                        << "\nPrio:    " << get_u16(part_data, j + 4)
                                         << "\nCounter: " << get_u32(part_data, j + 6);
                         }
                         EVLOG_info << "(GET_ERRORS) Not yet implemented. (diagnostics only)";
