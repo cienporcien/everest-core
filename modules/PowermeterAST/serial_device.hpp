@@ -10,6 +10,7 @@
 #include <everest/logging.hpp>
 #include <stdint.h>
 #include <termios.h>
+#include <mutex>
 #include <optional>
 
 namespace serial_device {
@@ -33,6 +34,8 @@ private:
     // Serial interface
     int fd{0};
     bool ignore_echo{false};
+
+    std::mutex serial_mutex;
 };
 
 } // namespace serial_device
