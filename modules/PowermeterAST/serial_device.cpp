@@ -174,7 +174,7 @@ void SerialDevice::tx(std::vector<uint8_t>& request) {
         // clear input and output buffer
         tcflush(this->fd, TCIOFLUSH);
 
-        // EVLOG_error << "TXD: " << hexdump(request) << " size: " << request.size();
+        EVLOG_error << "TXD: " << hexdump(request) << " size: " << request.size();
 
         // write to serial port
         write(this->fd, request.data(), request.size());

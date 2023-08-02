@@ -162,7 +162,6 @@ void powermeterImpl::publish_device_data_topic() {
         std::string dev_data_topic = this->pm_last_values.meter_id.value() + std::string("/device_data");
         // mod->mqtt.publish(dev_data_topic, device_data_obj.to_str());
         mod->mqtt.publish(dev_data_topic, j.dump());
-        EVLOG_error << "publishing device_data_obj";
     }
 }
 
@@ -173,7 +172,6 @@ void powermeterImpl::publish_device_diagnostics_topic() {
         std::string dev_diagnostics_topic = this->pm_last_values.meter_id.value() + std::string("/device_diagnostics");
         // mod->mqtt.publish(dev_diagnostics_topic, device_diagnostics_obj.to_str());
         mod->mqtt.publish(dev_diagnostics_topic, j.dump());
-        EVLOG_error << "publishing device_diagnostics_obj";
     }
 }
 
@@ -183,7 +181,6 @@ void powermeterImpl::publish_logging_topic() {
         to_json(j, logging_obj);
         std::string logging_topic = this->pm_last_values.meter_id.value() + std::string("/logging");
         mod->mqtt.publish(logging_topic, j.dump());
-        EVLOG_error << "publishing logging_obj";
     }
 }
 
