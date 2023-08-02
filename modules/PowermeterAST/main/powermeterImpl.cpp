@@ -542,12 +542,12 @@ ast_app_layer::CommandResult powermeterImpl::process_response(const std::vector<
                         << "response received from ID " << int(dest_addr) << ": \n"
                         << "    cmd: 0x" << hexdump_u16(part_cmd) 
                         << "   len: " << part_len 
-                        << "   status: " << std::hex << std::setw(2) << std::setfill('0') << static_cast<uint8_t>(part_status)
+                        << "   status: " << (int)part_status
                         << "   data: " << ((part_len > 5) ? hexdump(part_data) : "none") 
                         << "\n\n";
 
             if (part_status != ast_app_layer::CommandResult::OK) {
-                EVLOG_error << "Powermeter has signaled an error (status: " << (int)part_status << "\"" 
+                EVLOG_error << "Powermeter has signaled an error (status: (" << (int)part_status << ") \"" 
                             << ast_app_layer::command_result_to_string(part_status) 
                             << "\") at response 0x" << hexdump_u16(part_cmd) << " !";
 
@@ -555,7 +555,7 @@ ast_app_layer::CommandResult powermeterImpl::process_response(const std::vector<
                 if ((part_cmd != (int)ast_app_layer::CommandType::START_TRANSACTION) ||
                     (part_cmd != (int)ast_app_layer::CommandType::STOP_TRANSACTION) ||
                     (part_cmd != (int)ast_app_layer::CommandType::GET_LAST_OCMF)) {
-                    EVLOG_error << "Retrieving diagnostics data...";
+                    EVLOG_error << "Retrieving diagnostics data for error at command 0x" << hexdump_u16(part_cmd) << "...";
                     error_diagnostics(dest_addr);
                     continue; 
                 }
