@@ -32,45 +32,25 @@ namespace conversions {
 
 void to_json(json& j, const DeviceData& k) {
     j["UTC"] = k.utc_time_s;
-    EVLOG_error << "1";
     j["GMT_offset_quarterhours"] = k.gmt_offset_quarterhours;
-    EVLOG_error << "2";
     j["total_start_import_energy_Wh"] = k.total_start_import_energy_Wh;
-    EVLOG_error << "3";
     j["total_stop_import_energy_Wh"] = k.total_stop_import_energy_Wh;
-    EVLOG_error << "4";
     j["total_start_export_energy_Wh"] = k.total_start_export_energy_Wh;
-    EVLOG_error << "5";
     j["total_stop_export_energy_Wh"] = k.total_stop_export_energy_Wh;
-    EVLOG_error << "6";
     j["total_transaction_duration_s"] = k.total_transaction_duration_s;
-    EVLOG_error << "7";
     j["OCMF_stats"] = json();
-    EVLOG_error << "8";
     j["OCMF_stats"]["number_transactions"] = k.ocmf_stats.number_transactions;
-    EVLOG_error << "9";
     j["OCMF_stats"]["timestamp_first_transaction"] = k.ocmf_stats.timestamp_first_transaction;
-    EVLOG_error << "10";
     j["OCMF_stats"]["timestamp_last_transaction"] = k.ocmf_stats.timestamp_last_transaction;
-	EVLOG_error << "11";
     j["OCMF_stats"]["max_number_of_transactions"] = k.ocmf_stats.max_number_of_transactions;
-	EVLOG_error << "12";
     j["last_ocmf_transaction"] = k.last_ocmf_transaction;
-	EVLOG_error << "13";
     j["requested_ocmf"] = k.requested_ocmf;
-	EVLOG_error << "14";
     j["OCMF_info"] = json();
-	EVLOG_error << "15";
     j["OCMF_info"]["gateway_id"] = k.ocmf_info.gateway_id;
-	EVLOG_error << "16";
     j["OCMF_info"]["manufacturer"] = k.ocmf_info.manufacturer;
-	EVLOG_error << "17";
     j["OCMF_info"]["model"] = k.ocmf_info.model;
-	EVLOG_error << "18";
     j["total_dev_import_energy_Wh"] = k.total_dev_import_energy_Wh;
-	EVLOG_error << "19";
     j["total_dev_export_energy_Wh"] = k.total_dev_export_energy_Wh;
-	EVLOG_error << "20";
     j["status"] = k.status;
 }
 
