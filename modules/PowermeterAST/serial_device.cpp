@@ -160,7 +160,6 @@ int SerialDevice::rx(std::vector<uint8_t>& rxbuf,
                 EVLOG_error << "Error reading from device: " << strerror(errno);
             }
         }
-        EVLOG_error << "blip";
     }
     return bytes_read_total;
 }
@@ -172,7 +171,7 @@ void SerialDevice::tx(std::vector<uint8_t>& request) {
     // clear input and output buffer
     tcflush(this->fd, TCIOFLUSH);
 
-    EVLOG_error << "TXD: " << hexdump(request) << " size: " << request.size();
+    // EVLOG_error << "TXD: " << hexdump(request) << " size: " << request.size();
 
     // write to serial port
     write(this->fd, request.data(), request.size());

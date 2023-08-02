@@ -119,6 +119,19 @@ void powermeterImpl::ready() {
             }
         }).detach();
     }
+
+    // create error diagnostics thread
+    if (this->config.publish_device_diagnostics) {
+        std::thread ([this] {
+            while (true) {
+                if (this->error_diagnostics_target != 0) {
+                    error_diagnostics(this->error_diagnostics_target);
+                    this->error_diagnostics_target = 0;
+                    std::this_thread::sleep_for(std::chrono::seconds(1));
+                }
+            }
+        }).detach();
+    }
 }
 
 void powermeterImpl::set_device_time() {
@@ -300,24 +313,20 @@ void powermeterImpl::request_device_type() {
     receive_response();
 }
 
+void powermeterImpl::request_error_diagnostics(uint8_t addr) {
+    this->error_diagnostics_target = addr;
+}
+
 /* retrieve last error objects from device */
 void powermeterImpl::error_diagnostics(uint8_t addr) {
     std::vector<uint8_t> last_log_entry_cmd{};
     app_layer.create_command_get_last_log_entry(last_log_entry_cmd);
-
-    EVLOG_error << "error_diagnostics(): get last log entry";
-
     std::vector<uint8_t> slip_msg_last_log_entry = std::move(this->slip.package_single(this->config.powermeter_device_id, last_log_entry_cmd));
     {
-        EVLOG_error << "1";
         std::scoped_lock lock(this->serial_mutex);
-        EVLOG_error << "2";
         this->serial_device.tx(slip_msg_last_log_entry);
-        EVLOG_error << "3";
     }
     receive_response();
-
-    EVLOG_error << "error_diagnostics(): get last system errors";
 
     std::vector<uint8_t> last_system_errors_cmd{};
     app_layer.create_command_get_errors(ast_app_layer::ErrorCategory::LAST,
@@ -332,8 +341,6 @@ void powermeterImpl::error_diagnostics(uint8_t addr) {
     }
     receive_response();
 
-    EVLOG_error << "error_diagnostics(): get last critical system errors";
-
     std::vector<uint8_t> last_critical_system_errors_cmd{};
     app_layer.create_command_get_errors(ast_app_layer::ErrorCategory::LAST_CRITICAL,
                                         ast_app_layer::ErrorSource::SYSTEM,
@@ -347,8 +354,6 @@ void powermeterImpl::error_diagnostics(uint8_t addr) {
     }
     receive_response();
 
-    EVLOG_error << "error_diagnostics(): get last comm errors";
-
     std::vector<uint8_t> last_comm_errors_cmd{};
     app_layer.create_command_get_errors(ast_app_layer::ErrorCategory::LAST,
                                         ast_app_layer::ErrorSource::COMMUNICATION,
@@ -361,8 +366,6 @@ void powermeterImpl::error_diagnostics(uint8_t addr) {
         this->serial_device.tx(slip_msg_last_communication_errors);
     }
     receive_response();
-
-    EVLOG_error << "error_diagnostics(): get last critical comm errors";
 
     std::vector<uint8_t> last_critical_comm_errors_cmd{};
     app_layer.create_command_get_errors(ast_app_layer::ErrorCategory::LAST_CRITICAL,
@@ -566,11 +569,12 @@ ast_app_layer::CommandResult powermeterImpl::process_response(const std::vector<
                             << "\") at response 0x" << hexdump_u16(part_cmd) << " !";
 
                 // do not process erroneous responses except for transaction related commands
-                if ((part_cmd != (int)ast_app_layer::CommandType::START_TRANSACTION) ||
-                    (part_cmd != (int)ast_app_layer::CommandType::STOP_TRANSACTION) ||
-                    (part_cmd != (int)ast_app_layer::CommandType::GET_LAST_OCMF)) {
+                if ((part_cmd != (uint16_t)ast_app_layer::CommandType::START_TRANSACTION) ||
+                    (part_cmd != (uint16_t)ast_app_layer::CommandType::STOP_TRANSACTION) ||
+                    (part_cmd != (uint16_t)ast_app_layer::CommandType::GET_LAST_OCMF)) {
                     EVLOG_error << "Retrieving diagnostics data for error at command 0x" << hexdump_u16(part_cmd) << "...";
-                    error_diagnostics(dest_addr);
+                    request_error_diagnostics(dest_addr);
+                    i += part_len;  // skip remaining data and go to next command in message
                     continue; 
                 }
             }
@@ -957,7 +961,7 @@ ast_app_layer::CommandResult powermeterImpl::process_response(const std::vector<
                     {
                         if (part_data_len < 18) break;
                         device_diagnostics_obj.app_board.type = get_str(part_data, 0, 18);
-                        EVLOG_error << "AB_DEVICE_TYPE received: " << device_diagnostics_obj.app_board.type;
+                        EVLOG_info << "AB_DEVICE_TYPE received: " << device_diagnostics_obj.app_board.type;
                     }
                     break;
 
@@ -1053,7 +1057,6 @@ ast_app_layer::CommandResult powermeterImpl::receive_response() {
         ast_app_layer::CommandResult result{};
         this->slip.unpack(response, config.powermeter_device_id);
         while (this->slip.get_message_counter() > 0) {
-            EVLOG_error << "slip message counter: " << this->slip.get_message_counter();
             std::vector<uint8_t> message_from_queue = std::move(this->slip.retrieve_single_message());
             result = process_response(message_from_queue);
             if (result != ast_app_layer::CommandResult::OK) {  // always report (at least one) error instead of OK, if available

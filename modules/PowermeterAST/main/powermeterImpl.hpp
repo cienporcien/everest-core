@@ -87,6 +87,7 @@ private:
     Logging logging_obj{};
     ast_app_layer::ErrorCategory category_requested{};
     ast_app_layer::ErrorSource source_requested{};
+    uint8_t error_diagnostics_target{0};
     std::vector<uint8_t> ocmf_config_table{};
     std::string last_ocmf_str{};
 
@@ -105,6 +106,7 @@ private:
     void readRegisters();
     ast_app_layer::CommandResult process_response(const std::vector<uint8_t>& register_message);
     void request_device_type();
+    void request_error_diagnostics(uint8_t addr);
     void error_diagnostics(uint8_t addr);
     ast_app_layer::CommandResult receive_response();
 
