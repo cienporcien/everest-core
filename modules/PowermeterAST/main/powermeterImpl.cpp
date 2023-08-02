@@ -304,12 +304,17 @@ void powermeterImpl::request_device_type() {
 void powermeterImpl::error_diagnostics(uint8_t addr) {
     std::vector<uint8_t> last_log_entry_cmd{};
     app_layer.create_command_get_last_log_entry(last_log_entry_cmd);
+
+    EVLOG_error << "error_diagnostics(): get last log entry";
+
     std::vector<uint8_t> slip_msg_last_log_entry = std::move(this->slip.package_single(this->config.powermeter_device_id, last_log_entry_cmd));
     {
         std::lock_guard<std::mutex> lock(this->serial_mutex);
         this->serial_device.tx(slip_msg_last_log_entry);
     }
     receive_response();
+
+    EVLOG_error << "error_diagnostics(): get last system errors";
 
     std::vector<uint8_t> last_system_errors_cmd{};
     app_layer.create_command_get_errors(ast_app_layer::ErrorCategory::LAST,
@@ -324,6 +329,8 @@ void powermeterImpl::error_diagnostics(uint8_t addr) {
     }
     receive_response();
 
+    EVLOG_error << "error_diagnostics(): get last critical system errors";
+
     std::vector<uint8_t> last_critical_system_errors_cmd{};
     app_layer.create_command_get_errors(ast_app_layer::ErrorCategory::LAST_CRITICAL,
                                         ast_app_layer::ErrorSource::SYSTEM,
@@ -337,6 +344,8 @@ void powermeterImpl::error_diagnostics(uint8_t addr) {
     }
     receive_response();
 
+    EVLOG_error << "error_diagnostics(): get last comm errors";
+
     std::vector<uint8_t> last_comm_errors_cmd{};
     app_layer.create_command_get_errors(ast_app_layer::ErrorCategory::LAST,
                                         ast_app_layer::ErrorSource::COMMUNICATION,
@@ -349,6 +358,8 @@ void powermeterImpl::error_diagnostics(uint8_t addr) {
         this->serial_device.tx(slip_msg_last_communication_errors);
     }
     receive_response();
+
+    EVLOG_error << "error_diagnostics(): get last critical comm errors";
 
     std::vector<uint8_t> last_critical_comm_errors_cmd{};
     app_layer.create_command_get_errors(ast_app_layer::ErrorCategory::LAST_CRITICAL,
