@@ -31,6 +31,7 @@ namespace conversions {
 
 
 void to_json(json& j, const DeviceData& k) {
+    EVLOG_error << "[DeviceData][to_json()] start";
     j["UTC"] = k.utc_time_s;
     j["GMT_offset_quarterhours"] = k.gmt_offset_quarterhours;
     j["total_start_import_energy_Wh"] = k.total_start_import_energy_Wh;
@@ -52,6 +53,7 @@ void to_json(json& j, const DeviceData& k) {
     j["total_dev_import_energy_Wh"] = k.total_dev_import_energy_Wh;
     j["total_dev_export_energy_Wh"] = k.total_dev_export_energy_Wh;
     j["status"] = k.status;
+    EVLOG_error << "[DeviceData][to_json()] end";
 }
 
 void from_json(const json& j, DeviceData& k) {
@@ -81,6 +83,7 @@ std::ostream& operator<<(std::ostream& os, const DeviceData& k) {
 }
 
 void to_json(json& j, const DeviceDiagnostics& k) {
+    EVLOG_error << "[DeviceDiagnostics][to_json()] start";
     j["charge_point_id"] = k.charge_point_id;
     j["charge_point_id_type"] = k.charge_point_id_type;
     j["log_stats"] = json();
@@ -115,6 +118,7 @@ void to_json(json& j, const DeviceDiagnostics& k) {
             j["ocmf_config_table"][n] = k.ocmf_config_table.at(n);
         }
     }
+    EVLOG_error << "[DeviceDiagnostics][to_json()] end";
 }
 
 void from_json(const json& j, DeviceDiagnostics& k) {
@@ -142,6 +146,7 @@ std::ostream& operator<<(std::ostream& os, const DeviceDiagnostics& k) {
 }
 
 void to_json(json& j, const Logging& k) {
+    EVLOG_error << "[Logging][to_json()] start";
     j["log"] = json();
     j["log"]["last"] = json();
     j["log"]["last"]["type"] = k.last_log.type;
@@ -180,6 +185,7 @@ void to_json(json& j, const Logging& k) {
         j["errors"]["communication"]["last_critical"][n]["priority"] = k.source[(uint8_t)ast_app_layer::ErrorSource::COMMUNICATION].category[(uint8_t)ast_app_layer::ErrorCategory::LAST_CRITICAL].error[n].priority;
         j["errors"]["communication"]["last_critical"][n]["counter"] = k.source[(uint8_t)ast_app_layer::ErrorSource::COMMUNICATION].category[(uint8_t)ast_app_layer::ErrorCategory::LAST_CRITICAL].error[n].counter;
     }
+    EVLOG_error << "[Logging][to_json()] end";
 }
 
 void from_json(const json& j, Logging& k) {
