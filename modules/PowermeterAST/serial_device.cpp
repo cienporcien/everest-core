@@ -168,20 +168,20 @@ int SerialDevice::rx(std::vector<uint8_t>& rxbuf,
     This function transmits a byte vector.
 */
 void SerialDevice::tx(std::vector<uint8_t>& request) {
-    {
-        // clear input and output buffer
-        tcflush(this->fd, TCIOFLUSH);
+    // clear input and output buffer
+    tcflush(this->fd, TCIOFLUSH);
 
-        // write to serial port
-        write(this->fd, request.data(), request.size());
-        tcdrain(this->fd);
+    EVLOG_error << "TXD: " << hexdump(request) << " size: " << request.size();
 
-        if (this->ignore_echo) {
-            // read back echo of what we sent and ignore it
-            std::vector<uint8_t> req_buf{};
-            req_buf.reserve(request.size() + 1);
-            this->rx(req_buf, std::nullopt, std::nullopt);
-        }
+    // write to serial port
+    write(this->fd, request.data(), request.size());
+    tcdrain(this->fd);
+
+    if (this->ignore_echo) {
+        // read back echo of what we sent and ignore it
+        std::vector<uint8_t> req_buf{};
+        req_buf.reserve(request.size() + 1);
+        this->rx(req_buf, std::nullopt, std::nullopt);
     }
 }
 
