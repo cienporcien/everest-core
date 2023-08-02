@@ -130,7 +130,7 @@ void powermeterImpl::set_device_time() {
 
     std::vector<uint8_t> slip_msg_set_device_time = std::move(this->slip.package_single(this->config.powermeter_device_id, set_device_time_cmd));
     {
-        std::lock_guard<std::mutex> lock(this->serial_mutex);
+        std::scoped_lock lock(this->serial_mutex);
         this->serial_device.tx(slip_msg_set_device_time);
     }
     receive_response();
@@ -142,7 +142,7 @@ void powermeterImpl::set_device_charge_point_id(ast_app_layer::UserIdType id_typ
     
     std::vector<uint8_t> slip_msg_set_charge_point_id = std::move(this->slip.package_single(this->config.powermeter_device_id, set_charge_point_id_cmd));
     {
-        std::lock_guard<std::mutex> lock(this->serial_mutex);
+        std::scoped_lock lock(this->serial_mutex);
         this->serial_device.tx(slip_msg_set_charge_point_id);
     }
     receive_response();
@@ -223,7 +223,7 @@ void powermeterImpl::read_device_data() {
                                                                                                 get_ocmf_config_cmd
                                                                                             }));
         {
-            std::lock_guard<std::mutex> lock(this->serial_mutex);
+            std::scoped_lock lock(this->serial_mutex);
             this->serial_device.tx(slip_msg_read_device_data);
         }
         receive_response();
@@ -245,7 +245,7 @@ void powermeterImpl::read_device_data() {
                                                                                                   get_application_board_status_cmd
                                                                                               }));
         {
-            std::lock_guard<std::mutex> lock(this->serial_mutex);
+            std::scoped_lock lock(this->serial_mutex);
             this->serial_device.tx(slip_msg_read_device_data_2);
         }
         receive_response();
@@ -270,7 +270,7 @@ void powermeterImpl::get_device_public_key() {
                                                                                                       get_device_public_key_str16_cmd
                                                                                                   }));
         {
-            std::lock_guard<std::mutex> lock(this->serial_mutex);
+            std::scoped_lock lock(this->serial_mutex);
             this->serial_device.tx(slip_msg_get_device_public_keys);
         }
         receive_response();
@@ -294,7 +294,7 @@ void powermeterImpl::request_device_type() {
     app_layer.create_command_get_device_type(data_vect);
     std::vector<uint8_t> slip_msg_device_type = std::move(this->slip.package_single(this->config.powermeter_device_id, data_vect));
     {
-        std::lock_guard<std::mutex> lock(this->serial_mutex);
+        std::scoped_lock lock(this->serial_mutex);
         this->serial_device.tx(slip_msg_device_type);
     }
     receive_response();
@@ -309,7 +309,7 @@ void powermeterImpl::error_diagnostics(uint8_t addr) {
 
     std::vector<uint8_t> slip_msg_last_log_entry = std::move(this->slip.package_single(this->config.powermeter_device_id, last_log_entry_cmd));
     {
-        std::lock_guard<std::mutex> lock(this->serial_mutex);
+        std::scoped_lock lock(this->serial_mutex);
         this->serial_device.tx(slip_msg_last_log_entry);
     }
     receive_response();
@@ -324,7 +324,7 @@ void powermeterImpl::error_diagnostics(uint8_t addr) {
     source_requested = ast_app_layer::ErrorSource::SYSTEM;
     std::vector<uint8_t> slip_msg_last_system_errors = std::move(this->slip.package_single(this->config.powermeter_device_id, last_system_errors_cmd));
     {
-        std::lock_guard<std::mutex> lock(this->serial_mutex);
+        std::scoped_lock lock(this->serial_mutex);
         this->serial_device.tx(slip_msg_last_system_errors);
     }
     receive_response();
@@ -339,7 +339,7 @@ void powermeterImpl::error_diagnostics(uint8_t addr) {
     source_requested = ast_app_layer::ErrorSource::SYSTEM;
     std::vector<uint8_t> slip_msg_last_critical_system_errors = std::move(this->slip.package_single(this->config.powermeter_device_id, last_critical_system_errors_cmd));
     {
-        std::lock_guard<std::mutex> lock(this->serial_mutex);
+        std::scoped_lock lock(this->serial_mutex);
         this->serial_device.tx(slip_msg_last_critical_system_errors);
     }
     receive_response();
@@ -354,7 +354,7 @@ void powermeterImpl::error_diagnostics(uint8_t addr) {
     source_requested = ast_app_layer::ErrorSource::COMMUNICATION;
     std::vector<uint8_t> slip_msg_last_communication_errors = std::move(this->slip.package_single(this->config.powermeter_device_id, last_comm_errors_cmd));
     {
-        std::lock_guard<std::mutex> lock(this->serial_mutex);
+        std::scoped_lock lock(this->serial_mutex);
         this->serial_device.tx(slip_msg_last_communication_errors);
     }
     receive_response();
@@ -369,7 +369,7 @@ void powermeterImpl::error_diagnostics(uint8_t addr) {
     source_requested = ast_app_layer::ErrorSource::COMMUNICATION;
     std::vector<uint8_t> slip_msg_last_critical_communication_errors = std::move(this->slip.package_single(this->config.powermeter_device_id, last_critical_comm_errors_cmd));
     {
-        std::lock_guard<std::mutex> lock(this->serial_mutex);
+        std::scoped_lock lock(this->serial_mutex);
         this->serial_device.tx(slip_msg_last_critical_communication_errors);
     }
     receive_response();
@@ -403,7 +403,7 @@ void powermeterImpl::read_diagnostics_data() {
                                                                                                       get_application_board_mode_cmd
                                                                                                   }));
         {
-            std::lock_guard<std::mutex> lock(this->serial_mutex);
+            std::scoped_lock lock(this->serial_mutex);
             this->serial_device.tx(slip_msg_get_diagnostics_data_1);
         }
         receive_response();
@@ -416,7 +416,7 @@ void powermeterImpl::read_diagnostics_data() {
 
         std::vector<uint8_t> slip_msg_get_diagnostics_data_2 = std::move(this->slip.package_single(this->config.powermeter_device_id, get_log_stats_cmd));
         {
-            std::lock_guard<std::mutex> lock(this->serial_mutex);
+            std::scoped_lock lock(this->serial_mutex);
             this->serial_device.tx(slip_msg_get_diagnostics_data_2);
         }
         receive_response();
@@ -456,7 +456,7 @@ void powermeterImpl::read_diagnostics_data() {
                                                                                                       get_ocmf_config_cmd
                                                                                                   }));
         {
-            std::lock_guard<std::mutex> lock(this->serial_mutex);
+            std::scoped_lock lock(this->serial_mutex);
             this->serial_device.tx(slip_msg_get_diagnostics_data_3);
         }
         receive_response();
@@ -520,7 +520,7 @@ void powermeterImpl::readRegisters() {
                                                                                           get_total_power_cmd
                                                                                       }));
     {
-        std::lock_guard<std::mutex> lock(this->serial_mutex);
+        std::scoped_lock lock(this->serial_mutex);
         this->serial_device.tx(slip_msg_read_registers);
     }
     receive_response();
@@ -1038,7 +1038,7 @@ ast_app_layer::CommandResult powermeterImpl::process_response(const std::vector<
 }
 
 ast_app_layer::CommandResult powermeterImpl::receive_response() {
-    std::lock_guard<std::mutex> lock(this->serial_mutex);
+    std::scoped_lock lock(this->serial_mutex);
     ast_app_layer::CommandResult retval = ast_app_layer::CommandResult::OK;
     std::vector<uint8_t> response{};
     response.reserve(ast_app_layer::PM_AST_MAX_RX_LENGTH);
@@ -1088,7 +1088,7 @@ int powermeterImpl::handle_start_transaction(types::powermeter::TransactionParam
     app_layer.create_command_start_transaction(user_id_status, user_id_type, user_id_data, data_vect);
     std::vector<uint8_t> slip_msg_start_transaction = std::move(this->slip.package_single(this->config.powermeter_device_id, data_vect));
     {
-        std::lock_guard<std::mutex> lock(this->serial_mutex);
+        std::scoped_lock lock(this->serial_mutex);
         this->serial_device.tx(slip_msg_start_transaction);
     }
     this->start_transaction_msg_status = MessageStatus::SENT;
@@ -1114,7 +1114,7 @@ int powermeterImpl::handle_stop_transaction() {
     app_layer.create_command_stop_transaction(data_vect);
     std::vector<uint8_t> slip_msg_stop_transaction = std::move(this->slip.package_single(this->config.powermeter_device_id, data_vect));
     {
-        std::lock_guard<std::mutex> lock(this->serial_mutex);
+        std::scoped_lock lock(this->serial_mutex);
         this->serial_device.tx(slip_msg_stop_transaction);
     }
     this->stop_transaction_msg_status = MessageStatus::SENT;
@@ -1139,7 +1139,7 @@ std::string powermeterImpl::handle_get_signed_meter_value(std::string& auth_toke
     app_layer.create_command_get_last_transaction_ocmf(data_vect);
     std::vector<uint8_t> slip_msg_get_last_ocmf = std::move(this->slip.package_single(this->config.powermeter_device_id, data_vect));
     {
-        std::lock_guard<std::mutex> lock(this->serial_mutex);
+        std::scoped_lock lock(this->serial_mutex);
         this->serial_device.tx(slip_msg_get_last_ocmf);
     }
     this->get_transaction_values_msg_status = MessageStatus::SENT;
