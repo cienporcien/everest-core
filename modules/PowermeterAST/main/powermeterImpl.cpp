@@ -1053,6 +1053,7 @@ ast_app_layer::CommandResult powermeterImpl::receive_response() {
         ast_app_layer::CommandResult result{};
         this->slip.unpack(response, config.powermeter_device_id);
         while (this->slip.get_message_counter() > 0) {
+            EVLOG_error << "slip message counter: " << this->slip.get_message_counter();
             std::vector<uint8_t> message_from_queue = std::move(this->slip.retrieve_single_message());
             result = process_response(message_from_queue);
             if (result != ast_app_layer::CommandResult::OK) {  // always report (at least one) error instead of OK, if available
