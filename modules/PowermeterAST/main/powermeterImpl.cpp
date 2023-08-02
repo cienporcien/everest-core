@@ -158,6 +158,7 @@ void powermeterImpl::set_device_charge_point_id(ast_app_layer::UserIdType id_typ
 void powermeterImpl::publish_device_data_topic() {
     if (config.publish_device_data) {
         json j;
+        EVLOG_error << "publishing device_data_obj";
         to_json(j, device_data_obj);
         std::string dev_data_topic = this->pm_last_values.meter_id.value() + std::string("/device_data");
         // mod->mqtt.publish(dev_data_topic, device_data_obj.to_str());
@@ -168,6 +169,7 @@ void powermeterImpl::publish_device_data_topic() {
 void powermeterImpl::publish_device_diagnostics_topic() {
     if (config.publish_device_diagnostics) {
         json j;
+        EVLOG_error << "publishing device_diagnostics_obj";
         to_json(j, device_diagnostics_obj);
         std::string dev_diagnostics_topic = this->pm_last_values.meter_id.value() + std::string("/device_diagnostics");
         // mod->mqtt.publish(dev_diagnostics_topic, device_diagnostics_obj.to_str());
@@ -179,6 +181,7 @@ void powermeterImpl::publish_logging_topic() {
     if (config.publish_device_diagnostics) {
         json j;
         to_json(j, logging_obj);
+        EVLOG_error << "publishing logging_obj";
         std::string logging_topic = this->pm_last_values.meter_id.value() + std::string("/logging");
         mod->mqtt.publish(logging_topic, j.dump());
     }
