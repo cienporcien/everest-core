@@ -547,9 +547,9 @@ ast_app_layer::CommandResult powermeterImpl::process_response(const std::vector<
                         << "\n\n";
 
             if (part_status != ast_app_layer::CommandResult::OK) {
-                EVLOG_error << "Powermeter has signaled an error (\"" 
+                EVLOG_error << "Powermeter has signaled an error (status: " << (int)part_status << "\"" 
                             << ast_app_layer::command_result_to_string(part_status) 
-                            << "\")!";
+                            << "\") at response 0x" << hexdump_u16(part_cmd) << " !";
 
                 // do not process erroneous responses except for transaction related commands
                 if ((part_cmd != (int)ast_app_layer::CommandType::START_TRANSACTION) ||
