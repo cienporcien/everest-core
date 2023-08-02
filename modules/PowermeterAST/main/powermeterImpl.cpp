@@ -992,6 +992,7 @@ ast_app_layer::CommandResult powermeterImpl::process_response(const std::vector<
 }
 
 ast_app_layer::CommandResult powermeterImpl::receive_response() {
+    std::lock_guard<std::mutex> lock(this->serial_mutex);
     ast_app_layer::CommandResult retval = ast_app_layer::CommandResult::OK;
     std::vector<uint8_t> response{};
     response.reserve(ast_app_layer::PM_AST_MAX_RX_LENGTH);

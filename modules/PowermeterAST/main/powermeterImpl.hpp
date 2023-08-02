@@ -90,6 +90,8 @@ private:
     std::vector<uint8_t> ocmf_config_table{};
     std::string last_ocmf_str{};
 
+    std::mutex serial_mutex;
+
     void init_default_values();
     void read_powermeter_values();
     void set_device_time();

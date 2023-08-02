@@ -113,7 +113,6 @@ bool SerialDevice::open_device(const std::string& device, int _baud, bool _ignor
 int SerialDevice::rx(std::vector<uint8_t>& rxbuf,
                      std::optional<int> initial_timeout_ms, 
                      std::optional<int> in_msg_timeout_ms) {
-    std::lock_guard<std::mutex> lock(this->serial_mutex);
     int _initial_timeout = SERIAL_RX_INITIAL_TIMEOUT_MS;
     if (initial_timeout_ms.has_value()) {
         _initial_timeout = initial_timeout_ms.value();
@@ -169,19 +168,20 @@ int SerialDevice::rx(std::vector<uint8_t>& rxbuf,
     This function transmits a byte vector.
 */
 void SerialDevice::tx(std::vector<uint8_t>& request) {
-    std::lock_guard<std::mutex> lock(this->serial_mutex);
-    // clear input and output buffer
-    tcflush(this->fd, TCIOFLUSH);
+    {
+        // clear input and output buffer
+        tcflush(this->fd, TCIOFLUSH);
 
-    // write to serial port
-    write(this->fd, request.data(), request.size());
-    tcdrain(this->fd);
+        // write to serial port
+        write(this->fd, request.data(), request.size());
+        tcdrain(this->fd);
 
-    if (this->ignore_echo) {
-        // read back echo of what we sent and ignore it
-        std::vector<uint8_t> req_buf{};
-        req_buf.reserve(request.size() + 1);
-        this->rx(req_buf, std::nullopt, std::nullopt);
+        if (this->ignore_echo) {
+            // read back echo of what we sent and ignore it
+            std::vector<uint8_t> req_buf{};
+            req_buf.reserve(request.size() + 1);
+            this->rx(req_buf, std::nullopt, std::nullopt);
+        }
     }
 }
 
