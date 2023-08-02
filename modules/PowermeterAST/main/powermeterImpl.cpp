@@ -309,8 +309,11 @@ void powermeterImpl::error_diagnostics(uint8_t addr) {
 
     std::vector<uint8_t> slip_msg_last_log_entry = std::move(this->slip.package_single(this->config.powermeter_device_id, last_log_entry_cmd));
     {
+        EVLOG_error << "1";
         std::scoped_lock lock(this->serial_mutex);
+        EVLOG_error << "2";
         this->serial_device.tx(slip_msg_last_log_entry);
+        EVLOG_error << "3";
     }
     receive_response();
 
