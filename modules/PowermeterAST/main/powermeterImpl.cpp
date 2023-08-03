@@ -94,6 +94,8 @@ void powermeterImpl::ready() {
     if (this->config.publish_device_data) {
         std::thread ([this] {
             while (true) {
+                read_device_data();
+                std::this_thread::sleep_for(std::chrono::seconds(1));
                 publish_device_data_topic();
                 std::this_thread::sleep_for(std::chrono::seconds(5));
             }
@@ -104,6 +106,8 @@ void powermeterImpl::ready() {
     if (this->config.publish_device_diagnostics) {
         std::thread ([this] {
             while (true) {
+                read_diagnostics_data();
+                std::this_thread::sleep_for(std::chrono::seconds(1));
                 publish_device_diagnostics_topic();
                 std::this_thread::sleep_for(std::chrono::seconds(10));
             }
@@ -161,7 +165,6 @@ void powermeterImpl::publish_device_data_topic() {
         to_json(j, device_data_obj);
         std::string dev_data_topic = this->pm_last_values.meter_id.value() + std::string("/device_data");
         mod->mqtt.publish(dev_data_topic, j.dump());
-        EVLOG_info << "publish device data";
     }
 }
 
@@ -171,7 +174,6 @@ void powermeterImpl::publish_device_diagnostics_topic() {
         to_json(j, device_diagnostics_obj);
         std::string dev_diagnostics_topic = this->pm_last_values.meter_id.value() + std::string("/device_diagnostics");
         mod->mqtt.publish(dev_diagnostics_topic, j.dump());
-        EVLOG_info << "publish device diagnostics";
     }
 }
 
