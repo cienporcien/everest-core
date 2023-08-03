@@ -40,7 +40,7 @@ struct DeviceData {
     OcmfInfo ocmf_info;
     uint64_t total_dev_import_energy_Wh{};  // meter value needs to be divided by 10 for Wh
     uint64_t total_dev_export_energy_Wh{};  // meter value needs to be divided by 10 for Wh
-    uint64_t status{};
+    uint64_t ab_status{};
 };
 
 void to_json(json& j, const DeviceData& k);

@@ -44,7 +44,7 @@ inline uint32_t get_u32(std::vector<uint8_t>& vec, uint8_t start_index) {
                       (uint32_t)vec[start_index]);
 }
 
-inline uint16_t get_u32(std::vector<uint8_t>& vec) {
+inline uint32_t get_u32(std::vector<uint8_t>& vec) {
     return std::move(get_u32(vec, 0));
 }
 
@@ -60,7 +60,7 @@ inline uint64_t get_u64(std::vector<uint8_t>& vec, uint8_t start_index) {
                       (uint64_t)vec[start_index]);
 }
 
-inline uint16_t get_u64(std::vector<uint8_t>& vec) {
+inline uint64_t get_u64(std::vector<uint8_t>& vec) {
     return std::move(get_u64(vec, 0));
 }
 
@@ -941,8 +941,8 @@ ast_app_layer::CommandResult powermeterImpl::process_response(const std::vector<
                 case (int)ast_app_layer::CommandType::AB_STATUS:
                     {
                         if (part_data_len < 8) break;
-                        device_data_obj.status = get_u64(part_data);
-                        EVLOG_info << "AB_STATUS received: " << device_data_obj.status;
+                        device_data_obj.ab_status = get_u64(part_data);
+                        EVLOG_info << "AB_STATUS received: " << device_data_obj.ab_status;
                     }
                     break;
 

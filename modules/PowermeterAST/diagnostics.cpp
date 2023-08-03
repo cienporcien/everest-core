@@ -52,7 +52,7 @@ void to_json(json& j, const DeviceData& k) {
     j["OCMF_info"]["model"] = k.ocmf_info.model;
     j["total_dev_import_energy_Wh"] = k.total_dev_import_energy_Wh;
     j["total_dev_export_energy_Wh"] = k.total_dev_export_energy_Wh;
-    j["status"] = k.status;
+    j["status"] = k.ab_status;
     // EVLOG_error << "[DeviceData][to_json()] end";
 }
 
