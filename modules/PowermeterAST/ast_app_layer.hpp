@@ -157,8 +157,12 @@ inline std::string command_result_to_string(CommandResult res) {
         return "Public Key Missing";
     case CommandResult::PROTOCOL_ERROR:
         return "Protocol Error";
+    case CommandResult::TIMEOUT:
+        return "Timeout";
     case CommandResult::COMMUNICATION_FAILED:
         return "Communication Failed";
+    case CommandResult::PENDING:
+        return "Pending";
     }
     throw std::out_of_range("No known string conversion for provided enum of type CommandResult");
 }
