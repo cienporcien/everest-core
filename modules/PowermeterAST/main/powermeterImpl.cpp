@@ -66,8 +66,11 @@ inline uint16_t get_u64(std::vector<uint8_t>& vec) {
 
 inline std::string get_str(std::vector<uint8_t>& vec, uint8_t start_index, uint8_t length) {
     std::string str = "";
-    for (uint16_t n = start_index; n < (start_index + length); n++){
-        str += vec[n];
+    if ((start_index + length) <= vec.size()) {
+        for (uint16_t n = start_index; n < (start_index + length); n++){
+            if (vec[n] == 0x00) break;
+            str += vec[n];
+        }
     }
     return std::move(str);
 }
@@ -858,9 +861,15 @@ ast_app_layer::CommandResult powermeterImpl::process_response(const std::vector<
 
                 case (int)ast_app_layer::CommandType::AB_HW_VERSION:
                     {
-                        if (part_data_len < 41) break;
-                        device_diagnostics_obj.app_board.hw_ver = get_str(part_data, 0, 20);
-                        device_diagnostics_obj.m_board.hw_ver   = get_str(part_data, 21, 20);
+                        uint8_t delimiter_pos = 0;
+                        for (uint8_t i = 0; i < part_data_len; i++) {
+                            if (part_data[i] == '|') {
+                                delimiter_pos = i;
+                            }
+                        }
+                        device_diagnostics_obj.app_board.hw_ver = get_str(part_data, 0, delimiter_pos);
+                        device_diagnostics_obj.m_board.hw_ver   = get_str(part_data, delimiter_pos + 1, 
+                                                                          (part_data_len - delimiter_pos - 1));
                         EVLOG_info << "(AB_HW_VERSION) Not yet implemented. (diagnostics only)";
                     }
                     break;

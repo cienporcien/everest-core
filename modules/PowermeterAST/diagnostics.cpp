@@ -96,11 +96,12 @@ void to_json(json& j, const DeviceDiagnostics& k) {
     j["app_board"]["HW_ver"] = k.app_board.hw_ver;
     j["app_board"]["server_id"] = k.app_board.server_id;
     j["app_board"]["mode"] = k.app_board.mode;
-    j["app_board"]["serial"] = k.app_board.serial_number;
+    j["app_board"]["serial_nr"] = k.app_board.serial_number;
     j["app_board"]["SW_ver"] = k.app_board.sw_ver;
     j["app_board"]["FW_CRC"] = k.app_board.fw_crc;
     j["app_board"]["FW_hash"] = k.app_board.fw_hash;
     j["m_board"] = json();
+    j["m_board"]["HW_ver"] = k.m_board.hw_ver;
     j["m_board"]["SW_ver"] = k.m_board.sw_ver;
     j["m_board"]["FW_CRC"] = k.m_board.fw_crc;
     j["pubkey"] = json();
