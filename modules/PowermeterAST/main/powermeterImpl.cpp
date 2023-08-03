@@ -510,24 +510,27 @@ ast_app_layer::CommandResult powermeterImpl::process_response(const std::vector<
         if ((i + part_len - 1) <= response_size) {
             std::vector<uint8_t> part_data((response_message.begin() + i + 5), (response_message.begin() + i + part_len));
 
-            EVLOG_info << "\n\n"
-                        << "response received from ID " << int(dest_addr) << ": \n"
-                        << "    cmd: 0x" << hexdump_u16(part_cmd) 
-                        << "   len: " << part_len 
-                        << "   status: " << (int)part_status
-                        << "   data: " << ((part_len > 5) ? hexdump(part_data) : "none") 
-                        << "\n\n";
+            // EVLOG_info << "\n\n"
+            //             << "response received from ID " << int(dest_addr) << ": \n"
+            //             << "    cmd: 0x" << hexdump_u16(part_cmd) 
+            //             << "   len: " << part_len 
+            //             << "   status: " << (int)part_status
+            //             << "   data: " << ((part_len > 5) ? hexdump(part_data) : "none") 
+            //             << "\n\n";
 
             if (part_status != ast_app_layer::CommandResult::OK) {
                 EVLOG_error << "Powermeter has signaled an error (status: (" << (int)part_status << ") \"" 
                             << ast_app_layer::command_result_to_string(part_status) 
                             << "\") at response 0x" << hexdump_u16(part_cmd) << " !";
 
-                // do not process erroneous responses except for transaction related commands
-                if ((part_cmd != (uint16_t)ast_app_layer::CommandType::START_TRANSACTION) ||
-                    (part_cmd != (uint16_t)ast_app_layer::CommandType::STOP_TRANSACTION) ||
+                // skip error diagnostics for transaction or error diagnostics related commands,
+                // request detailed error report for others
+                if ((part_cmd != (uint16_t)ast_app_layer::CommandType::START_TRANSACTION)  ||
+                    (part_cmd != (uint16_t)ast_app_layer::CommandType::STOP_TRANSACTION)   ||
+                    (part_cmd != (uint16_t)ast_app_layer::CommandType::GET_LAST_LOG_ENTRY) ||
+                    (part_cmd != (uint16_t)ast_app_layer::CommandType::GET_ERRORS)         ||
                     (part_cmd != (uint16_t)ast_app_layer::CommandType::GET_LAST_OCMF)) {
-                    EVLOG_error << "Retrieving diagnostics data for error at command 0x" << hexdump_u16(part_cmd) << "...";
+                    EVLOG_info << "Retrieving diagnostics data for error at command 0x" << hexdump_u16(part_cmd) << "...";
                     request_error_diagnostics(dest_addr);
                     i += part_len;  // skip remaining data and go to next command in message
                     continue; 
