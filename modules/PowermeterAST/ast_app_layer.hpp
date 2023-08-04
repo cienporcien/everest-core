@@ -254,6 +254,40 @@ enum class LogType : std::uint8_t {
     PULSE_LED_SOURCE_CHANGED    = 13
 };
 
+inline std::string log_type_to_string(LogType log) {
+    switch (log) {
+    case LogType::NONE:
+        return "None";
+    case LogType::LINE_LOSS_MEASUREMENT_MODE:
+        return "Line loss measurement mode";
+    case LogType::IMPEDANCE_CHANGED:
+        return "Impedance changed";
+    case LogType::OPERATION_MODE_CHANGED:
+        return "Operation mode changed";
+    case LogType::ASSEMBLY_CONFIG_CHANGED:
+        return "Assembly config changed";
+    case LogType::FATAL_ERROR_EVENT:
+        return "Fatal error event";
+    case LogType::TIME_DELTA_TOO_BIG_EVENT:
+        return "Time delta too big event";
+    case LogType::CHARGE_POINT_ID_CHANGED:
+        return "Charge point id changed";
+    case LogType::EXTERNAL_DISPLAY_PAIRED:
+        return "External display paired";
+    case LogType::EXTERNAL_DISPLAY_FAILURE:
+        return "External display failure";
+    case LogType::CHARGE_DATA_OUT_OF_MEMORY:
+        return "Charge data out of memory";
+    case LogType::LOG_DATA_OUT_OF_MEMORY:
+        return "Log data out of memory";
+    case LogType::FW_VERSION_CHANGED:
+        return "Fw version changed";
+    case LogType::PULSE_LED_SOURCE_CHANGED:
+        return "Pulse LED source changed";
+    }
+    throw std::out_of_range("No known string conversion for provided enum of type LogType");
+}
+
 class LogEntry {
 public:
     ast_app_layer::LogType type;

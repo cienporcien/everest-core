@@ -128,14 +128,14 @@ void to_json(json& j, const Logging& k) {
     // EVLOG_error << "[Logging][to_json()] start";
     j["log"] = json();
     j["log"]["last"] = json();
-    j["log"]["last"]["type"] = k.last_log.type;
+    j["log"]["last"]["type"] = "" + std::to_string((int)k.last_log.type) + ": " + log_type_to_string(k.last_log.type);
     j["log"]["last"]["second_index"] = k.last_log.second_index;
     j["log"]["last"]["utc_time"] = k.last_log.utc_time;
     j["log"]["last"]["utc_offset"] = k.last_log.utc_offset;
-    j["log"]["last"]["old_value"] = std::move(std::string(k.last_log.old_value.begin(), k.last_log.old_value.end()));
-    j["log"]["last"]["new_value"] = std::move(std::string(k.last_log.new_value.begin(), k.last_log.new_value.end()));
-    j["log"]["last"]["server_id"] = std::move(std::string(k.last_log.server_id.begin(), k.last_log.server_id.end()));
-    j["log"]["last"]["signature"] = std::move(std::string(k.last_log.signature.begin(), k.last_log.signature.end()));
+    j["log"]["last"]["old_value"] = module::conversions::hexdump(k.last_log.old_value);
+    j["log"]["last"]["new_value"] = module::conversions::hexdump(k.last_log.new_value);
+    j["log"]["last"]["server_id"] = module::conversions::hexdump(k.last_log.server_id);
+    j["log"]["last"]["signature"] = module::conversions::hexdump(k.last_log.signature);
 
     j["errors"] = json();
     j["errors"]["system"] = json();

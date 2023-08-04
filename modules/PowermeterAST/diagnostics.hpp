@@ -156,6 +156,17 @@ static std::string hexdump(uint16_t msg) {
     return ss.str();
 }
 
+static std::string get_string(std::vector<uint8_t>& vec) {
+    std::string str = "";
+    for (uint16_t n = 0; n < vec.size(); n++){
+        if ((vec[n] < ' ') || (vec[n] > '~')) {
+            str += " ";    
+        } else {
+            str += vec[n];
+        }
+    }
+    return std::move(str);
+}
 
 } // namespace conversions
 } // namespace module
