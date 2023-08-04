@@ -511,7 +511,7 @@ ast_app_layer::CommandResult powermeterImpl::process_response(const std::vector<
             if (part_status != ast_app_layer::CommandResult::OK) {
                 EVLOG_error << "Powermeter has signaled an error (status: (" << (int)part_status << ") \"" 
                             << ast_app_layer::command_result_to_string(part_status) 
-                            << "\") at response 0x" << module::conversions::hexdump(part_cmd) << " !";
+                            << "\") at response " << module::conversions::hexdump(part_cmd) << " !";
 
                 // skip error diagnostics for transaction or error diagnostics related commands,
                 // request detailed error report for others
@@ -520,7 +520,7 @@ ast_app_layer::CommandResult powermeterImpl::process_response(const std::vector<
                     (part_cmd != (uint16_t)ast_app_layer::CommandType::GET_LAST_LOG_ENTRY) ||
                     (part_cmd != (uint16_t)ast_app_layer::CommandType::GET_ERRORS)         ||
                     (part_cmd != (uint16_t)ast_app_layer::CommandType::GET_LAST_OCMF)) {
-                    EVLOG_info << "Retrieving diagnostics data for error at command 0x" << module::conversions::hexdump(part_cmd) << "...";
+                    EVLOG_info << "Retrieving diagnostics data for error at command " << module::conversions::hexdump(part_cmd) << "...";
                     request_error_diagnostics(dest_addr);
                     i += part_len;  // skip remaining data and go to next command in message
                     continue; 

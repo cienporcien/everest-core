@@ -308,7 +308,7 @@ public:
     std::vector<uint8_t> data;
 };
 
-static constexpr uint16_t PM_AST_MAX_RX_LENGTH = 255;
+static constexpr uint16_t PM_AST_MAX_RX_LENGTH = 1000;
 static constexpr uint16_t PM_AST_SERIAL_RX_INITIAL_TIMEOUT_MS = 1100;
 static constexpr uint16_t PM_AST_SERIAL_RX_WITHIN_MESSAGE_TIMEOUT_MS = 100;
 
