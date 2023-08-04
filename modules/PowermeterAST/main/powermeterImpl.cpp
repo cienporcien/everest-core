@@ -413,6 +413,8 @@ void powermeterImpl::read_diagnostics_data() {
         this->serial_device.tx(slip_msg_get_diagnostics_data_3);
         receive_response();
     }
+    // part 4 - public key
+    get_device_public_key();
 }
 
 void powermeterImpl::read_powermeter_values() {
