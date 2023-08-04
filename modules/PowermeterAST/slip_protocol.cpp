@@ -21,23 +21,6 @@
 
 namespace slip_protocol {
 
-static std::string hexdump(std::vector<uint8_t> msg) {
-    std::stringstream ss;
-
-    for (auto index : msg) {
-        ss << std::hex << std::setw(2) << std::setfill('0') << (int)index << " ";
-    }
-    return ss.str();
-}
-
-static std::string hexdump_u16(uint16_t msg) {
-    std::stringstream ss;
-
-    ss << std::hex << std::setw(4) << std::setfill('0') << (uint16_t)msg;
-
-    return ss.str();
-}
-
 inline void remove_start_and_stop_frame(std::vector<uint8_t>& vec) {
     vec.erase(vec.begin());
     vec.pop_back();

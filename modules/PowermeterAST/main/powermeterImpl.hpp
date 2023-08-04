@@ -88,7 +88,6 @@ private:
     ast_app_layer::ErrorCategory category_requested{};
     ast_app_layer::ErrorSource source_requested{};
     uint8_t error_diagnostics_target{0};
-    std::vector<uint8_t> ocmf_config_table{};
     std::string last_ocmf_str{};
 
     void init_default_values();

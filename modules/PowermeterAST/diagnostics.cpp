@@ -5,34 +5,12 @@
 
 namespace module {
 
-namespace conversions {
-
-// std::string state_to_string(State e) {
-//     switch (e) {
-//     case State::DISCONNECTED:
-//         return "disconnected";
-//     case State::CONNECTED:
-//         return "connected";
-//     }
-//     throw std::out_of_range("No known string conversion for provided enum of type State");
-// }
-
-// State string_to_state(const std::string& s) {
-//     if (s == "disconnected") {
-//         return State::DISCONNECTED;
-//     }
-//     if (s == "connected") {
-//         return State::CONNECTED;
-//     }
-//     throw std::out_of_range("Provided string " + s + " could not be converted to enum of type State");
-// }
-
-} // namespace conversions
-
-
 void to_json(json& j, const DeviceData& k) {
     // EVLOG_error << "[DeviceData][to_json()] start";
-    j["UTC"] = k.utc_time_s;
+    // time_t time = k.utc_time_s;
+    // std::chrono::time_point<date::utc_clock> tp = std::chrono::system_clock::from_time_t(time);
+    // j["UTC"] = Everest::Date::to_rfc3339(tp);
+    // j["UTC"] = Everest::Date::to_rfc3339(std::chrono::time_point<date::utc_clock>(k.utc_time_s));
     j["GMT_offset_quarterhours"] = k.gmt_offset_quarterhours;
     j["total_start_import_energy_Wh"] = k.total_start_import_energy_Wh;
     j["total_stop_import_energy_Wh"] = k.total_stop_import_energy_Wh;
@@ -52,7 +30,7 @@ void to_json(json& j, const DeviceData& k) {
     j["OCMF_info"]["model"] = k.ocmf_info.model;
     j["total_dev_import_energy_Wh"] = k.total_dev_import_energy_Wh;
     j["total_dev_export_energy_Wh"] = k.total_dev_export_energy_Wh;
-    j["status"] = k.ab_status;
+    j["status"] = module::conversions::to_bin_string(k.ab_status);
     // EVLOG_error << "[DeviceData][to_json()] end";
 }
 
@@ -98,12 +76,12 @@ void to_json(json& j, const DeviceDiagnostics& k) {
     j["app_board"]["mode"] = k.app_board.mode;
     j["app_board"]["serial_nr"] = k.app_board.serial_number;
     j["app_board"]["SW_ver"] = k.app_board.sw_ver;
-    j["app_board"]["FW_CRC"] = k.app_board.fw_crc;
-    j["app_board"]["FW_hash"] = k.app_board.fw_hash;
+    j["app_board"]["FW_CRC"] = module::conversions::hexdump(k.app_board.fw_crc);
+    j["app_board"]["FW_hash"] = module::conversions::hexdump(k.app_board.fw_hash);
     j["m_board"] = json();
     j["m_board"]["HW_ver"] = k.m_board.hw_ver;
     j["m_board"]["SW_ver"] = k.m_board.sw_ver;
-    j["m_board"]["FW_CRC"] = k.m_board.fw_crc;
+    j["m_board"]["FW_CRC"] = module::conversions::hexdump(k.m_board.fw_crc);
     j["pubkey"] = json();
     j["pubkey"]["asn1"] = json();
     j["pubkey"]["str16"] = json();
@@ -116,7 +94,7 @@ void to_json(json& j, const DeviceDiagnostics& k) {
     j["ocmf_config_table"] = json::array();
     if(k.ocmf_config_table.size() > 0) {
         for (uint8_t n = 0; n < k.ocmf_config_table.size(); n++) {
-            j["ocmf_config_table"][n] = k.ocmf_config_table.at(n);
+            j["ocmf_config_table"][n] = module::conversions::hexdump((uint8_t)k.ocmf_config_table.at(n));
         }
     }
     // EVLOG_error << "[DeviceDiagnostics][to_json()] end";
@@ -198,5 +176,29 @@ std::ostream& operator<<(std::ostream& os, const Logging& k) {
     os << json(k).dump(4);
     return os;
 }
+
+namespace conversions {
+
+// std::string state_to_string(State e) {
+//     switch (e) {
+//     case State::DISCONNECTED:
+//         return "disconnected";
+//     case State::CONNECTED:
+//         return "connected";
+//     }
+//     throw std::out_of_range("No known string conversion for provided enum of type State");
+// }
+
+// State string_to_state(const std::string& s) {
+//     if (s == "disconnected") {
+//         return State::DISCONNECTED;
+//     }
+//     if (s == "connected") {
+//         return State::CONNECTED;
+//     }
+//     throw std::out_of_range("Provided string " + s + " could not be converted to enum of type State");
+// }
+
+} // namespace conversions
 
 } // namespace module

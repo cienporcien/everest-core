@@ -120,6 +120,43 @@ namespace conversions {
 // std::string state_to_string(State e);
 // State string_to_state(const std::string& s);
 
+template<typename T>
+static std::string to_bin_string(const T& num){
+    std::stringstream ss{};
+    for (uint8_t n = 0; n < sizeof(T); n++){
+        ss << std::bitset<8>(num >> ((sizeof(T) - n - 1) * 8));
+        if (n % 2) {
+            if (n != sizeof(T) - 1) {
+                ss << " - ";
+            }
+        } else {
+            ss << " ";
+        }
+    }
+    return ss.str();
+}
+
+static std::string hexdump(std::vector<uint8_t> msg) {
+    std::stringstream ss;
+    for (auto index : msg) {
+        ss << std::hex << std::uppercase << std::setw(2) << std::setfill('0') << (int)index << " ";
+    }
+    return ss.str();
+}
+
+static std::string hexdump(uint8_t msg) {
+    std::stringstream ss;
+    ss << "0x" << std::hex << std::uppercase << std::setw(2) << std::setfill('0') << (int)msg;
+    return ss.str();
+}
+
+static std::string hexdump(uint16_t msg) {
+    std::stringstream ss;
+    ss << "0x" << std::hex << std::uppercase << std::setw(4) << std::setfill('0') << (uint16_t)msg;
+    return ss.str();
+}
+
+
 } // namespace conversions
 } // namespace module
 

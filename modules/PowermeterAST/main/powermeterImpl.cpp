@@ -9,23 +9,6 @@
 namespace module {
 namespace main {
 
-static std::string hexdump(std::vector<uint8_t> msg) {
-    std::stringstream ss;
-
-    for (auto index : msg) {
-        ss << std::hex << std::setw(2) << std::setfill('0') << (int)index << " ";
-    }
-    return ss.str();
-}
-
-static std::string hexdump_u16(uint16_t msg) {
-    std::stringstream ss;
-
-    ss << std::hex << std::setw(4) << std::setfill('0') << (uint16_t)msg;
-
-    return ss.str();
-}
-
 inline uint16_t get_u16(std::vector<uint8_t>& vec, uint8_t start_index) {
     if (vec.size() < start_index + 1) return 0;
     return std::move(((uint16_t)vec[start_index + 1] <<  8) | 
@@ -517,16 +500,16 @@ ast_app_layer::CommandResult powermeterImpl::process_response(const std::vector<
 
             // EVLOG_info << "\n\n"
             //             << "response received from ID " << int(dest_addr) << ": \n"
-            //             << "    cmd: 0x" << hexdump_u16(part_cmd) 
+            //             << "    cmd: 0x" << module::conversions::hexdump(part_cmd) 
             //             << "   len: " << part_len 
             //             << "   status: " << (int)part_status
-            //             << "   data: " << ((part_len > 5) ? hexdump(part_data) : "none") 
+            //             << "   data: " << ((part_len > 5) ? module::conversions::hexdump(part_data) : "none") 
             //             << "\n\n";
 
             if (part_status != ast_app_layer::CommandResult::OK) {
                 EVLOG_error << "Powermeter has signaled an error (status: (" << (int)part_status << ") \"" 
                             << ast_app_layer::command_result_to_string(part_status) 
-                            << "\") at response 0x" << hexdump_u16(part_cmd) << " !";
+                            << "\") at response 0x" << module::conversions::hexdump(part_cmd) << " !";
 
                 // skip error diagnostics for transaction or error diagnostics related commands,
                 // request detailed error report for others
@@ -535,7 +518,7 @@ ast_app_layer::CommandResult powermeterImpl::process_response(const std::vector<
                     (part_cmd != (uint16_t)ast_app_layer::CommandType::GET_LAST_LOG_ENTRY) ||
                     (part_cmd != (uint16_t)ast_app_layer::CommandType::GET_ERRORS)         ||
                     (part_cmd != (uint16_t)ast_app_layer::CommandType::GET_LAST_OCMF)) {
-                    EVLOG_info << "Retrieving diagnostics data for error at command 0x" << hexdump_u16(part_cmd) << "...";
+                    EVLOG_info << "Retrieving diagnostics data for error at command 0x" << module::conversions::hexdump(part_cmd) << "...";
                     request_error_diagnostics(dest_addr);
                     i += part_len;  // skip remaining data and go to next command in message
                     continue; 
@@ -742,24 +725,39 @@ ast_app_layer::CommandResult powermeterImpl::process_response(const std::vector<
                 case (int)ast_app_layer::CommandType::OCMF_INFO:
                     {
                         if (part_data_len < 1) break;
-
                         // gateway_id
                         if (part_data_len < part_data[0]) break;  // error, data too short
                         uint8_t length_gateway_id = part_data[0];
                         if (length_gateway_id > 18) length_gateway_id = 18; // max length
-                        device_data_obj.ocmf_info.gateway_id = get_str(part_data, 1, length_gateway_id);
+                        if (length_gateway_id > 0) {
+                            device_data_obj.ocmf_info.gateway_id = get_str(part_data, 1, length_gateway_id);
+                            length_gateway_id++;    // add length info byte for following calculations
+                        } else {
+                            device_data_obj.ocmf_info.gateway_id = "";
+                            length_gateway_id = 1; // length info always requires at least one byte
+                        }
 
                         // manufacturer
-                        if (part_data_len < (length_gateway_id + part_data[length_gateway_id])) break;  // error, data too short
+                        if (part_data_len < (length_gateway_id + part_data[length_gateway_id] + 1)) break;  // error, data too short
                         uint8_t length_manufacturer = part_data[length_gateway_id];
                         if (length_manufacturer > 4) length_manufacturer = 4; // max length
-                        device_data_obj.ocmf_info.manufacturer = get_str(part_data, length_gateway_id, length_manufacturer);
+                        if (length_manufacturer > 0) {
+                            device_data_obj.ocmf_info.manufacturer = get_str(part_data, length_gateway_id + 1, length_manufacturer);
+                            length_manufacturer++;    // add length info byte for following calculations
+                        } else {
+                            device_data_obj.ocmf_info.manufacturer = "";
+                            length_manufacturer = 1; // length info always requires at least one byte
+                        }
 
                         // model
                         if (part_data_len < (length_gateway_id + length_manufacturer + part_data[length_gateway_id + length_manufacturer])) break;  // error, data too short
                         uint8_t length_model = part_data[length_gateway_id + length_manufacturer];
                         if (length_model > 18) length_model = 18; // max length
-                        device_data_obj.ocmf_info.model = get_str(part_data, (length_gateway_id + length_manufacturer), length_model);
+                        if (length_model > 0) {
+                            device_data_obj.ocmf_info.model = get_str(part_data, (length_gateway_id + length_manufacturer + 1), length_model);
+                        } else {
+                            device_data_obj.ocmf_info.model = "";
+                        }
                         
                         EVLOG_info << "(OCMF_INFO) Not yet implemented. (diagnostics only)";
                     }
@@ -768,9 +766,9 @@ ast_app_layer::CommandResult powermeterImpl::process_response(const std::vector<
                 case (int)ast_app_layer::CommandType::OCMF_CONFIG:
                     {
                         if (part_data_len < 16) break;
-                        ocmf_config_table.clear();
-                        for (uint8_t n = 0; n < 16; n++) {
-                            ocmf_config_table.push_back(part_data[n]);
+                        device_diagnostics_obj.ocmf_config_table.clear();
+                        for (uint8_t n = 0; n < part_data_len; n++) {
+                            device_diagnostics_obj.ocmf_config_table.push_back(part_data[n]);
                         }
                         EVLOG_info << "(OCMF_CONFIG) Not yet implemented. (diagnostics only)";
                     }
@@ -994,13 +992,13 @@ ast_app_layer::CommandResult powermeterImpl::process_response(const std::vector<
                 case (int)ast_app_layer::CommandType::AB_PROD_DATE:
                 case (int)ast_app_layer::CommandType::SET_REQUEST_CHALLENGE:
                     {
-                        EVLOG_error << "Command not (yet) implemented. (" << hexdump_u16(part_cmd) << ")";
+                        EVLOG_error << "Command not (yet) implemented. (" << module::conversions::hexdump(part_cmd) << ")";
                     }
                     break;
 
                 default:
                     {
-                        EVLOG_error << "Command ID invalid. (" << hexdump_u16(part_cmd) << ")";
+                        EVLOG_error << "Command ID invalid. (" << module::conversions::hexdump(part_cmd) << ")";
                     }
                     break;
             }
@@ -1023,7 +1021,7 @@ ast_app_layer::CommandResult powermeterImpl::receive_response() {
     response.reserve(ast_app_layer::PM_AST_MAX_RX_LENGTH);
     this->serial_device.rx(response, ast_app_layer::PM_AST_SERIAL_RX_INITIAL_TIMEOUT_MS, ast_app_layer::PM_AST_SERIAL_RX_WITHIN_MESSAGE_TIMEOUT_MS);
 
-    EVLOG_critical << "\n\nRECEIVE: " << hexdump(response) << " length: " << response.size() << "\n\n";
+    EVLOG_critical << "\n\nRECEIVE: " << module::conversions::hexdump(response) << " length: " << response.size() << "\n\n";
     
     if (response.size() >= 5) {
         ast_app_layer::CommandResult result{};
@@ -1036,7 +1034,7 @@ ast_app_layer::CommandResult powermeterImpl::receive_response() {
             }
         }
     } else {
-        EVLOG_info << "Received partial message. Skipping. [" << hexdump(response) << "]";
+        EVLOG_info << "Received partial message. Skipping. [" << module::conversions::hexdump(response) << "]";
         return ast_app_layer::CommandResult::COMMUNICATION_FAILED;
     }
     return retval;
