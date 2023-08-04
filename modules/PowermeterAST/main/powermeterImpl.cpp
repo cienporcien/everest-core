@@ -695,10 +695,10 @@ ast_app_layer::CommandResult powermeterImpl::process_response(const std::vector<
                 case (int)ast_app_layer::CommandType::OCMF_STATS:
                     {
                         if (part_data_len < 16) break;
-                        device_data_obj.ocmf_stats.number_transactions = get_u32(part_data);
-                        device_data_obj.ocmf_stats.timestamp_first_transaction = get_u32(part_data, 5);
-                        device_data_obj.ocmf_stats.timestamp_last_transaction = get_u32(part_data, 9);
-                        device_data_obj.ocmf_stats.max_number_of_transactions = get_u32(part_data, 13);
+                        device_data_obj.ocmf_stats.number_transactions         = get_u32(part_data);
+                        device_data_obj.ocmf_stats.timestamp_first_transaction = get_u32(part_data, 4);
+                        device_data_obj.ocmf_stats.timestamp_last_transaction  = get_u32(part_data, 8);
+                        device_data_obj.ocmf_stats.max_number_of_transactions  = get_u32(part_data, 12);
                         EVLOG_info << "(OCMF_STATS) Not yet implemented. (diagnostics only)";
                     }
                     break;
@@ -805,9 +805,9 @@ ast_app_layer::CommandResult powermeterImpl::process_response(const std::vector<
                     {
                         if (part_data_len < 16) break;
                         device_diagnostics_obj.log_stats.number_log_entries  = get_u32(part_data);
-                        device_diagnostics_obj.log_stats.timestamp_first_log = get_u32(part_data, 5);
-                        device_diagnostics_obj.log_stats.timestamp_last_log  = get_u32(part_data, 9);
-                        device_diagnostics_obj.log_stats.max_number_of_logs  = get_u32(part_data, 13);
+                        device_diagnostics_obj.log_stats.timestamp_first_log = get_u32(part_data, 4);
+                        device_diagnostics_obj.log_stats.timestamp_last_log  = get_u32(part_data, 8);
+                        device_diagnostics_obj.log_stats.max_number_of_logs  = get_u32(part_data, 12);
                         EVLOG_info << "(GET_LOG_STATS) Not yet implemented. (diagnostics only)";
                     }
                     break;
