@@ -30,6 +30,7 @@ struct Conf {
     int parity;
     int rs485_direction_gpio;
     bool ignore_echo;
+    int gmt_offset_quarter_hours;
     bool publish_device_data;
     bool publish_device_diagnostics;
 };
