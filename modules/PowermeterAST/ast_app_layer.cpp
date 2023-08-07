@@ -88,6 +88,7 @@ int8_t AstAppLayer::get_utc_offset_in_quarter_hours(const std::chrono::time_poin
 void AstAppLayer::create_command_start_transaction(ast_app_layer::UserIdStatus user_id_status,
                                                    ast_app_layer::UserIdType user_id_type,
                                                    std::string user_id_data,
+                                                   int8_t gmt_offset_quarter_hours,
                                                    std::vector<uint8_t>& command_data) {
     ast_app_layer::Command cmd{};
 
@@ -96,7 +97,7 @@ void AstAppLayer::create_command_start_transaction(ast_app_layer::UserIdStatus u
     cmd.status = ast_app_layer::CommandStatus::OK;
 
     insert_u32_as_u8s(cmd.data, (timepoint_to_uint32(date::utc_clock::now())));
-    cmd.data.push_back(/* GMT offset in quarters of an hour, e.g. 0x08 = +2h */ 0x08);              // TODO (LAD): create function to calculate current GMT offset
+    cmd.data.push_back(static_cast<uint8_t>(gmt_offset_quarter_hours)); // GMT offset in quarters of an hour, e.g. 0x08 = +2h
     cmd.data.push_back((uint8_t)user_id_status);
     cmd.data.push_back((uint8_t)user_id_type);
 

@@ -321,6 +321,7 @@ public:
     void create_command_start_transaction(ast_app_layer::UserIdStatus user_id_status,
                                           ast_app_layer::UserIdType user_id_type,
                                           std::string user_id_data,
+                                          int8_t gmt_offset_quarter_hours,
                                           std::vector<uint8_t>& command_data);
     void create_command_stop_transaction(std::vector<uint8_t>& command_data);
 

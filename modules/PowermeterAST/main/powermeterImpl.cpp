@@ -1020,7 +1020,7 @@ int powermeterImpl::handle_start_transaction(types::powermeter::TransactionParam
     }
     
     std::vector<uint8_t> data_vect{};
-    app_layer.create_command_start_transaction(user_id_status, user_id_type, user_id_data, data_vect);
+    app_layer.create_command_start_transaction(user_id_status, user_id_type, user_id_data, this->config.gmt_offset_quarter_hours, data_vect);
     std::vector<uint8_t> slip_msg_start_transaction = std::move(this->slip.package_single(this->config.powermeter_device_id, data_vect));
     this->serial_device.tx(slip_msg_start_transaction);
     this->start_transaction_msg_status = MessageStatus::SENT;

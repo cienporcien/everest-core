@@ -34,6 +34,12 @@ provides:
         description: On some hardware every message that is sent is read back, this setting filters the sent message in the reply.
         type: boolean
         default: false
+      gmt_offset_quarter_hours:
+        description: GMT offset in quarters of an hour, e.g. 8 = +2h
+        type: integer
+        minimum: -47
+        maximum: 47
+        default: 0
       publish_device_data:
         description: Regularly publish device data not covered by the "powermeter" interface (for debugging purposes).
         type: boolean
