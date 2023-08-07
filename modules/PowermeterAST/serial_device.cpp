@@ -138,13 +138,13 @@ int SerialDevice::rx(std::vector<uint8_t>& rxbuf,
             perror("rx: select:");
             break;
         } else if (rv == 0) { // no more bytes to read within timeout, so transfer is complete
-            // EVLOG_critical << "no more bytes to read within timeout (rv == 0)";
+            EVLOG_debug << "No more bytes to read within timeout. (rv == 0)";
             break;
         } else {              // received more bytes, add them to buffer
             // do we have space in the rx buffer left?
             if (bytes_read_total >= rxbuf.capacity()) {
                 // no buffer space left, but more to read.
-                EVLOG_info << "no buffer space left, but more to read";
+                EVLOG_info << "No buffer space left, but more to read. (Did you mean to set \"ignore_echo\" to \"false\"?)";
                 break;
             }
 
@@ -156,7 +156,6 @@ int SerialDevice::rx(std::vector<uint8_t>& rxbuf,
             if (bytes_read > 0) {
                 bytes_read_total += bytes_read;
                 rxbuf.resize(bytes_read_total);
-                // EVLOG_error << "RECVD: " << hexdump(rxbuf) << " size: " << rxbuf.size();
             } else if (bytes_read < 0) {
                 EVLOG_error << "Error reading from device: " << strerror(errno);
             }
@@ -174,7 +173,7 @@ void SerialDevice::tx(std::vector<uint8_t>& request) {
         // clear input and output buffer
         tcflush(this->fd, TCIOFLUSH);
 
-        EVLOG_error << "TXD: " << hexdump(request) << " size: " << request.size();
+        // EVLOG_info << "TXD: " << hexdump(request) << " size: " << request.size();
 
         // write to serial port
         write(this->fd, request.data(), request.size());

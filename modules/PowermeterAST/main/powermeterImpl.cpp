@@ -553,7 +553,6 @@ ast_app_layer::CommandResult powermeterImpl::process_response(const std::vector<
                         if (part_data_len < 5) break;
                         device_data_obj.utc_time_s = get_u32(part_data);
                         device_data_obj.gmt_offset_quarterhours = part_data[4];
-                        EVLOG_info << "(TIME) Not yet implemented. (diagnostics only)";
                     }
                     break;
 
@@ -563,7 +562,6 @@ ast_app_layer::CommandResult powermeterImpl::process_response(const std::vector<
                         types::units::Voltage volt = this->pm_last_values.voltage_V.value();
                         volt.DC = (float)get_u32(part_data) / 100.0; // powermeter reports in 100 * [V]
                         this->pm_last_values.voltage_V = volt;
-                        EVLOG_info << "GET_VOLTAGE_L1 received.";
                     }
                     break;
 
@@ -573,7 +571,6 @@ ast_app_layer::CommandResult powermeterImpl::process_response(const std::vector<
                         types::units::Current amp = this->pm_last_values.current_A.value();
                         amp.DC = (float)get_u32(part_data) / 1000.0;  // powermeter reports in [mA]
                         this->pm_last_values.current_A = amp;
-                        EVLOG_info << "GET_CURRENT_L1 received.";
                     }
                     break;
 
@@ -583,7 +580,6 @@ ast_app_layer::CommandResult powermeterImpl::process_response(const std::vector<
                         types::units::Power power = this->pm_last_values.power_W.value();
                         power.total = (float)get_u32(part_data) / 100.0;  // powermeter reports in [W * 100]
                         this->pm_last_values.power_W = power;
-                        EVLOG_info << "GET_IMPORT_DEV_POWER received.";
                     }
                     break;
 
@@ -607,7 +603,6 @@ ast_app_layer::CommandResult powermeterImpl::process_response(const std::vector<
                         this->pm_last_values.energy_Wh_import = energy_in;
 
                         device_data_obj.total_dev_import_energy_Wh = get_u64(part_data) / 10.0;  // powermeter reports in [Wh * 10]
-                        EVLOG_info << "GET_TOTAL_IMPORT_DEV_ENERGY received.";
                     }
                     break;
 
@@ -622,7 +617,6 @@ ast_app_layer::CommandResult powermeterImpl::process_response(const std::vector<
                         this->pm_last_values.energy_Wh_export = energy_out;
 
                         device_data_obj.total_dev_export_energy_Wh = get_u64(part_data) / 10.0;  // powermeter reports in [Wh * 10]
-                        EVLOG_info << "(GET_TOTAL_EXPORT_DEV_ENERGY) Not yet implemented. (diagnostics only)";
                     }
                     break;
 
@@ -630,23 +624,20 @@ ast_app_layer::CommandResult powermeterImpl::process_response(const std::vector<
                     {
                         if (part_data_len < 8) break;
                         device_data_obj.total_start_import_energy_Wh = get_u64(part_data) / 10.0;  // powermeter reports in [Wh * 10]
-                        EVLOG_info << "(GET_TOTAL_START_IMPORT_DEV_ENERGY) Not yet implemented. (diagnostics only)";
                     }
                     break;
 
                 case (int)ast_app_layer::CommandType::GET_TOTAL_STOP_IMPORT_DEV_ENERGY:
                     {
                         if (part_data_len < 8) break;
-                        device_data_obj.total_stop_import_energy_Wh = get_u64(part_data) / 10.0;  // powermeter reports in [Wh * 10]
-                        EVLOG_info << "(GET_TOTAL_STOP_IMPORT_DEV_ENERGY) Not yet implemented. (diagnostics only)";   
+                        device_data_obj.total_stop_import_energy_Wh = get_u64(part_data) / 10.0;  // powermeter reports in [Wh * 10]  
                     }
                     break;
 
                 case (int)ast_app_layer::CommandType::GET_TOTAL_START_EXPORT_DEV_ENERGY:
                     {
                         if (part_data_len < 8) break;
-                        device_data_obj.total_start_export_energy_Wh = get_u64(part_data) / 10.0;  // powermeter reports in [Wh * 10]
-                        EVLOG_info << "(GET_TOTAL_START_EXPORT_DEV_ENERGY) Not yet implemented. (diagnostics only)";   
+                        device_data_obj.total_start_export_energy_Wh = get_u64(part_data) / 10.0;  // powermeter reports in [Wh * 10]  
                     }
                     break;
 
@@ -654,7 +645,6 @@ ast_app_layer::CommandResult powermeterImpl::process_response(const std::vector<
                     {
                         if (part_data_len < 8) break;
                         device_data_obj.total_stop_export_energy_Wh = get_u64(part_data) / 10.0;  // powermeter reports in [Wh * 10]
-                        EVLOG_info << "(GET_TOTAL_STOP_EXPORT_DEV_ENERGY) Not yet implemented. (diagnostics only)";
                     }
                     break;
 
@@ -662,7 +652,6 @@ ast_app_layer::CommandResult powermeterImpl::process_response(const std::vector<
                     {
                         if (part_data_len < 4) break;
                         device_data_obj.total_transaction_duration_s = get_u32(part_data);
-                        EVLOG_info << "(GET_TRANSACT_TOTAL_DURATION) Not yet implemented. (diagnostics only)";
                     }
                     break;
 
@@ -672,7 +661,6 @@ ast_app_layer::CommandResult powermeterImpl::process_response(const std::vector<
                         device_diagnostics_obj.pubkey_str16_format = part_data[0];
                         device_diagnostics_obj.pubkey_str16 = module::conversions::hexdump(part_data, 1, 129);
                         // device_diagnostics_obj.pubkey_str16 = module::conversions::hexdump(part_data, 0, 130);
-                        EVLOG_info << "(GET_PUBKEY_STR16) Not yet implemented. (diagnostics only)";
                     }
                     break;
 
@@ -680,7 +668,6 @@ ast_app_layer::CommandResult powermeterImpl::process_response(const std::vector<
                     {
                         if (part_data_len < 176) break;
                         device_diagnostics_obj.pubkey_asn1 = module::conversions::hexdump(part_data, 0, 176);
-                        EVLOG_info << "(GET_PUBKEY_ASN1) Not yet implemented. (diagnostics only)";
                     }
                     break;
 
@@ -689,7 +676,6 @@ ast_app_layer::CommandResult powermeterImpl::process_response(const std::vector<
                         if (part_data_len < 65) break;
                         device_diagnostics_obj.pubkey_format = part_data[0];
                         device_diagnostics_obj.pubkey = module::conversions::hexdump(part_data, 1, 64);
-                        EVLOG_info << "(REQUEST_METER_PUBKEY) Not yet implemented. (diagnostics only)";
                     }
                     break;
 
@@ -702,7 +688,6 @@ ast_app_layer::CommandResult powermeterImpl::process_response(const std::vector<
                         device_data_obj.ocmf_stats.timestamp_first_transaction = get_u32(part_data, 4);
                         device_data_obj.ocmf_stats.timestamp_last_transaction  = get_u32(part_data, 8);
                         device_data_obj.ocmf_stats.max_number_of_transactions  = get_u32(part_data, 12);
-                        EVLOG_info << "(OCMF_STATS) Not yet implemented. (diagnostics only)";
                     }
                     break;
 
@@ -710,7 +695,6 @@ ast_app_layer::CommandResult powermeterImpl::process_response(const std::vector<
                     {
                         if (part_data_len < 16) break;
                         device_data_obj.requested_ocmf = get_str(part_data, 0, part_data_len);
-                        EVLOG_info << "(GET_OCMF) Not yet implemented. (diagnostics only)";
                     }
                     break;
 
@@ -721,7 +705,6 @@ ast_app_layer::CommandResult powermeterImpl::process_response(const std::vector<
                         }
                         device_data_obj.last_ocmf_transaction = get_str(part_data, 0, part_data_len);
                         this->last_ocmf_str = device_data_obj.last_ocmf_transaction;
-                        EVLOG_info << "GET_LAST_OCMF received.";
                     }
                     break;
 
@@ -761,8 +744,6 @@ ast_app_layer::CommandResult powermeterImpl::process_response(const std::vector<
                         } else {
                             device_data_obj.ocmf_info.model = "";
                         }
-                        
-                        EVLOG_info << "(OCMF_INFO) Not yet implemented. (diagnostics only)";
                     }
                     break;
 
@@ -773,7 +754,6 @@ ast_app_layer::CommandResult powermeterImpl::process_response(const std::vector<
                         for (uint8_t n = 0; n < part_data_len; n++) {
                             device_diagnostics_obj.ocmf_config_table.push_back(part_data[n]);
                         }
-                        EVLOG_info << "(OCMF_CONFIG) Not yet implemented. (diagnostics only)";
                     }
                     break;
 
@@ -782,7 +762,6 @@ ast_app_layer::CommandResult powermeterImpl::process_response(const std::vector<
                         if (part_data_len < 14) break;
                         device_diagnostics_obj.charge_point_id_type = part_data[0];
                         device_diagnostics_obj.charge_point_id = get_str(part_data, 1, 13);
-                        EVLOG_info << "(CHARGE_POINT_ID) Not yet implemented. (diagnostics only)";
                     }
                     break;
 
@@ -800,7 +779,6 @@ ast_app_layer::CommandResult powermeterImpl::process_response(const std::vector<
                                         << "\nPrio:    " << get_u16(part_data, j + 4)
                                         << "\nCounter: " << get_u32(part_data, j + 6);
                         }
-                        EVLOG_info << "(GET_ERRORS) Not yet implemented. (diagnostics only)";
                     }
                     break;
 
@@ -811,13 +789,6 @@ ast_app_layer::CommandResult powermeterImpl::process_response(const std::vector<
                         device_diagnostics_obj.log_stats.timestamp_first_log = get_u32(part_data, 4);
                         device_diagnostics_obj.log_stats.timestamp_last_log  = get_u32(part_data, 8);
                         device_diagnostics_obj.log_stats.max_number_of_logs  = get_u32(part_data, 12);
-                        EVLOG_info << "(GET_LOG_STATS) Not yet implemented. (diagnostics only)";
-                    }
-                    break;
-
-                case (int)ast_app_layer::CommandType::GET_LOG_ENTRY:
-                    {
-                        EVLOG_info << "(GET_LOG_ENTRY) Not yet implemented.";
                     }
                     break;
 
@@ -840,13 +811,6 @@ ast_app_layer::CommandResult powermeterImpl::process_response(const std::vector<
                         for (uint8_t n = 40; n < 104; n++){
                             logging_obj.last_log.signature.push_back(part_data[n]);
                         }
-                        EVLOG_info << "(GET_LAST_LOG_ENTRY) Not yet implemented. (diagnostics only)";
-                    }
-                    break;
-
-                case (int)ast_app_layer::CommandType::GET_LOG_ENTRY_REVERSE:
-                    {
-                        EVLOG_info << "(GET_LOG_ENTRY_REVERSE) Not yet implemented.";
                     }
                     break;
 
@@ -856,7 +820,6 @@ ast_app_layer::CommandResult powermeterImpl::process_response(const std::vector<
                     {
                         if (part_data_len < 1) break;
                         device_diagnostics_obj.app_board.mode = part_data[0];
-                        EVLOG_info << "(AB_MODE_SET) Not yet implemented. (diagnostics only)";
                     }
                     break;
 
@@ -871,7 +834,6 @@ ast_app_layer::CommandResult powermeterImpl::process_response(const std::vector<
                         device_diagnostics_obj.app_board.hw_ver = get_str(part_data, 0, delimiter_pos);
                         device_diagnostics_obj.m_board.hw_ver   = get_str(part_data, delimiter_pos + 1, 
                                                                           (part_data_len - delimiter_pos - 1));
-                        EVLOG_info << "(AB_HW_VERSION) Not yet implemented. (diagnostics only)";
                     }
                     break;
 
@@ -879,7 +841,6 @@ ast_app_layer::CommandResult powermeterImpl::process_response(const std::vector<
                     {
                         if (part_data_len < 10) break;
                         device_diagnostics_obj.app_board.server_id = get_str(part_data, 0, 10);
-                        EVLOG_info << "(AB_SERVER_ID) Not yet implemented. (diagnostics only)";
                     }
                     break;
 
@@ -887,7 +848,6 @@ ast_app_layer::CommandResult powermeterImpl::process_response(const std::vector<
                     {
                         if (part_data_len < 4) break;
                         device_diagnostics_obj.app_board.serial_number = get_u32(part_data);
-                        EVLOG_info << "(AB_SERIAL_NR) Not yet implemented. (diagnostics only)";
                     }
                     break;
 
@@ -895,7 +855,6 @@ ast_app_layer::CommandResult powermeterImpl::process_response(const std::vector<
                     {
                         if (part_data_len < 20) break;
                         device_diagnostics_obj.app_board.sw_ver = get_str(part_data, 0, 20);
-                        EVLOG_info << "(AB_SW_VERSION) Not yet implemented. (diagnostics only)";
                     }
                     break;
 
@@ -903,7 +862,6 @@ ast_app_layer::CommandResult powermeterImpl::process_response(const std::vector<
                     {
                         if (part_data_len < 2) break;
                         device_diagnostics_obj.app_board.fw_crc = get_u16(part_data);
-                        EVLOG_info << "(AB_FW_CHECKSUM) Not yet implemented. (diagnostics only)";
                     }
                     break;
 
@@ -911,7 +869,6 @@ ast_app_layer::CommandResult powermeterImpl::process_response(const std::vector<
                     {
                         if (part_data_len < 2) break;
                         device_diagnostics_obj.app_board.fw_hash = get_u16(part_data);
-                        EVLOG_info << "(AB_FW_HASH) Not yet implemented. (diagnostics only)";
                     }
                     break;
 
@@ -919,7 +876,6 @@ ast_app_layer::CommandResult powermeterImpl::process_response(const std::vector<
                     {
                         if (part_data_len < 20) break;
                         device_diagnostics_obj.m_board.sw_ver = get_str(part_data, 0, 20);
-                        EVLOG_info << "(MB_SW_VERSION) Not yet implemented. (diagnostics only)";
                     }
                     break;
 
@@ -927,7 +883,6 @@ ast_app_layer::CommandResult powermeterImpl::process_response(const std::vector<
                     {
                         if (part_data_len < 2) break;
                         device_diagnostics_obj.m_board.fw_crc = get_u16(part_data);
-                        EVLOG_info << "(MB_FW_CHECKSUM) Not yet implemented. (diagnostics only)";
                     }
                     break;
 
@@ -935,7 +890,6 @@ ast_app_layer::CommandResult powermeterImpl::process_response(const std::vector<
                     {
                         if (part_data_len < 18) break;
                         device_diagnostics_obj.app_board.type = get_str(part_data, 0, 18);
-                        EVLOG_info << "AB_DEVICE_TYPE received: " << device_diagnostics_obj.app_board.type;
                     }
                     break;
 
@@ -943,7 +897,6 @@ ast_app_layer::CommandResult powermeterImpl::process_response(const std::vector<
                     {
                         if (part_data_len < 8) break;
                         device_data_obj.ab_status = get_u64(part_data);
-                        EVLOG_info << "AB_STATUS received: " << device_data_obj.ab_status;
                     }
                     break;
 
@@ -974,6 +927,8 @@ ast_app_layer::CommandResult powermeterImpl::process_response(const std::vector<
                 case (int)ast_app_layer::CommandType::GET_TOTAL_STOP_EXPORT_LINE_LOSS_ENERGY:
                 case (int)ast_app_layer::CommandType::GET_TOTAL_STOP_IMPORT_MAINS_ENERGY:
                 case (int)ast_app_layer::CommandType::GET_TOTAL_STOP_EXPORT_MAINS_ENERGY:
+                case (int)ast_app_layer::CommandType::GET_LOG_ENTRY:
+                case (int)ast_app_layer::CommandType::GET_LOG_ENTRY_REVERSE:
                 case (int)ast_app_layer::CommandType::REGISTER_DISPLAY_PUBKEY:
                 case (int)ast_app_layer::CommandType::REQUEST_CHALLENGE:
                 case (int)ast_app_layer::CommandType::SET_SIGNED_CHALLENGE:
