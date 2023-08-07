@@ -668,9 +668,10 @@ ast_app_layer::CommandResult powermeterImpl::process_response(const std::vector<
 
                 case (int)ast_app_layer::CommandType::GET_PUBKEY_STR16:
                     {
-                        if (part_data_len < 129) break;
+                        if (part_data_len < 130) break;
                         device_diagnostics_obj.pubkey_str16_format = part_data[0];
-                        device_diagnostics_obj.pubkey_str16 = get_str(part_data, 1, 129);
+                        device_diagnostics_obj.pubkey_str16 = module::conversions::hexdump(part_data, 1, 129);
+                        // device_diagnostics_obj.pubkey_str16 = module::conversions::hexdump(part_data, 0, 130);
                         EVLOG_info << "(GET_PUBKEY_STR16) Not yet implemented. (diagnostics only)";
                     }
                     break;
@@ -678,7 +679,7 @@ ast_app_layer::CommandResult powermeterImpl::process_response(const std::vector<
                 case (int)ast_app_layer::CommandType::GET_PUBKEY_ASN1:
                     {
                         if (part_data_len < 176) break;
-                        device_diagnostics_obj.pubkey_asn1 = get_str(part_data, 0, 176);
+                        device_diagnostics_obj.pubkey_asn1 = module::conversions::hexdump(part_data, 0, 176);
                         EVLOG_info << "(GET_PUBKEY_ASN1) Not yet implemented. (diagnostics only)";
                     }
                     break;
@@ -687,7 +688,7 @@ ast_app_layer::CommandResult powermeterImpl::process_response(const std::vector<
                     {
                         if (part_data_len < 65) break;
                         device_diagnostics_obj.pubkey_format = part_data[0];
-                        device_diagnostics_obj.pubkey = get_str(part_data, 1, 65);
+                        device_diagnostics_obj.pubkey = module::conversions::hexdump(part_data, 1, 64);
                         EVLOG_info << "(REQUEST_METER_PUBKEY) Not yet implemented. (diagnostics only)";
                     }
                     break;
@@ -794,7 +795,7 @@ ast_app_layer::CommandResult powermeterImpl::process_response(const std::vector<
                             logging_obj.source[(uint8_t)source_requested].category[(uint8_t)category_requested].error[i].id       = get_u32(part_data, j);
                             logging_obj.source[(uint8_t)source_requested].category[(uint8_t)category_requested].error[i].priority = get_u16(part_data, j + 4);
                             logging_obj.source[(uint8_t)source_requested].category[(uint8_t)category_requested].error[i].counter  = get_u32(part_data, j + 6);
-                            EVLOG_error << "Error #" << (int)i << " for source (" << (int)source_requested << ") and category (" << (int)category_requested 
+                            EVLOG_info << "Error #" << (int)i << " for source (" << (int)source_requested << ") and category (" << (int)category_requested 
                                         << "):\nID:      " << get_u32(part_data, j)
                                         << "\nPrio:    " << get_u16(part_data, j + 4)
                                         << "\nCounter: " << get_u32(part_data, j + 6);
