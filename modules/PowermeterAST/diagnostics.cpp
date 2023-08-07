@@ -7,10 +7,7 @@ namespace module {
 
 void to_json(json& j, const DeviceData& k) {
     // EVLOG_error << "[DeviceData][to_json()] start";
-    // time_t time = k.utc_time_s;
-    // std::chrono::time_point<date::utc_clock> tp = std::chrono::system_clock::from_time_t(time);
-    // j["UTC"] = Everest::Date::to_rfc3339(tp);
-    // j["UTC"] = Everest::Date::to_rfc3339(std::chrono::time_point<date::utc_clock>(k.utc_time_s));
+    j["UTC"] = module::conversions::u32_epoch_to_rfc3339(k.utc_time_s);
     j["GMT_offset_quarterhours"] = k.gmt_offset_quarterhours;
     j["total_start_import_energy_Wh"] = k.total_start_import_energy_Wh;
     j["total_stop_import_energy_Wh"] = k.total_stop_import_energy_Wh;
@@ -130,8 +127,9 @@ void to_json(json& j, const Logging& k) {
     j["log"]["last"] = json();
     j["log"]["last"]["type"] = "" + std::to_string((int)k.last_log.type) + ": " + log_type_to_string(k.last_log.type);
     j["log"]["last"]["second_index"] = k.last_log.second_index;
-    j["log"]["last"]["utc_time"] = k.last_log.utc_time;
-    j["log"]["last"]["utc_offset"] = k.last_log.utc_offset;
+    // j["log"]["last"]["utc_time"] = k.last_log.utc_time;
+    j["log"]["last"]["utc_time"] = module::conversions::u32_epoch_to_rfc3339(k.last_log.utc_time);
+    j["log"]["last"]["utc_offset_quarterhours"] = k.last_log.utc_offset;
     j["log"]["last"]["old_value"] = module::conversions::hexdump(k.last_log.old_value);
     j["log"]["last"]["new_value"] = module::conversions::hexdump(k.last_log.new_value);
     j["log"]["last"]["server_id"] = module::conversions::hexdump(k.last_log.server_id);
@@ -176,29 +174,5 @@ std::ostream& operator<<(std::ostream& os, const Logging& k) {
     os << json(k).dump(4);
     return os;
 }
-
-namespace conversions {
-
-// std::string state_to_string(State e) {
-//     switch (e) {
-//     case State::DISCONNECTED:
-//         return "disconnected";
-//     case State::CONNECTED:
-//         return "connected";
-//     }
-//     throw std::out_of_range("No known string conversion for provided enum of type State");
-// }
-
-// State string_to_state(const std::string& s) {
-//     if (s == "disconnected") {
-//         return State::DISCONNECTED;
-//     }
-//     if (s == "connected") {
-//         return State::CONNECTED;
-//     }
-//     throw std::out_of_range("Provided string " + s + " could not be converted to enum of type State");
-// }
-
-} // namespace conversions
 
 } // namespace module

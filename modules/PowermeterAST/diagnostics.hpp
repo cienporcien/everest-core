@@ -144,6 +144,16 @@ static std::string hexdump(std::vector<uint8_t> msg) {
     return ss.str();
 }
 
+static std::string hexdump(std::vector<uint8_t> msg, uint8_t start, uint8_t number_of_chars) {
+    if ((start + number_of_chars) > msg.size()) return std::string{};
+    std::stringstream ss;
+    for (uint8_t n = start; n < (start + number_of_chars); n++) {
+        ss << std::hex << std::uppercase << std::setw(2) << std::setfill('0') << (int)msg.at(n);
+        if (n < (start + number_of_chars - 1)) ss << " ";
+    }
+    return ss.str();
+}
+
 static std::string hexdump(uint8_t msg) {
     std::stringstream ss;
     ss << "0x" << std::hex << std::uppercase << std::setw(2) << std::setfill('0') << (int)msg;
@@ -167,6 +177,15 @@ static std::string get_string(std::vector<uint8_t>& vec) {
     }
     return std::move(str);
 }
+
+static std::string u32_epoch_to_rfc3339(uint32_t epoch_time) {
+    time_t tt = static_cast<time_t>(epoch_time);
+    std::tm tm = *std::gmtime(&tt);
+    std::stringstream ss;
+    ss << std::put_time(&tm, "%Y-%m-%dT%H:%M:%S.000Z");
+    return std::move(ss.str());
+}
+
 
 } // namespace conversions
 } // namespace module
