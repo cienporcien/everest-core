@@ -20,7 +20,6 @@ class TypeDefinition:
     type: JsonType
 
 
-
 def create_type_reference_from_url(url: str):
     if not url.startswith('/'):
         raise Exception(f'Type reference url needs to start with /: {url}')
@@ -85,8 +84,8 @@ class Implementation:
 @dataclass
 class Requirement:
     interface: str
-    min_connections: int = 1
-    max_connections: int = 1
+    min_connections: int
+    max_connections: int
 
 
 @dataclass
@@ -126,7 +125,9 @@ def create_implementation_from_definition(d: dict) -> Implementation:
 
 def create_requirement_from_definition(d: dict) -> Requirement:
     return Requirement(
-        interface=d.get('interface')
+        interface=d.get('interface'),
+        min_connections=d.get('min_connections', 1),
+        max_connections=d.get('max_connections', 1)
     )
 
 

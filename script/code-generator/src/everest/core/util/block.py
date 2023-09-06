@@ -41,7 +41,7 @@ class BlockCalculator:
 
     # FIXME (aw): refactor this, don't need to pass the things for error handling!
     def _check_for_match(self, definitions: BlockDefinitions, version: str, line, line_no, file_path) -> BlockMatch:
-        match = re.search(self._check_for_match, line)
+        match = re.search(self._regex, line)
         if not match:
             return None
 
@@ -56,12 +56,12 @@ class BlockCalculator:
                 f'  contains version "{matched_version}", which is different from the blocks definition version "{version}"'
             )
 
-        for name, definition in definitions.values():
+        for name, definition in definitions.items():
             if definition.id != matched_uuid:
                 continue
 
             return BlockMatch(
-                tag=self._format.form(uuid=matched_uuid, version=matched_version),
+                tag=self._format.format(uuid=matched_uuid, version=matched_version),
                 name=name
             )
 

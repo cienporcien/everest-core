@@ -52,6 +52,7 @@ class ViewModelFactory:
         )
 
     def create_requirement(self, req: model.Requirement, req_name: str):
+        print(req_name, (req.min_connections != 1 or req.max_connections != 1))
         return vm.RequirementViewModel(
             id=req_name,
             is_vector=(req.min_connections != 1 or req.max_connections != 1),

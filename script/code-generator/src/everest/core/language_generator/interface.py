@@ -35,10 +35,12 @@ class ILanguageGenerator(ABC):
         self._validator = DefinitionParser(config.schema_directory)
         self._type_cache: dict[str, tuple[TypeDefinition, float]] = {}
         self._file_creator = FileCreator()
-        self._update_mode = False # NOTE (aw): questionable, if this really belongs here
+        self._update_mode = False  # NOTE (aw): questionable, if this really belongs here
 
     def create_module(self, options: CreateModuleOptions, full_qualified_module_name: str):
-        # FIXME (aw): actually, module_name is the fully qualified module name as it might include parent directories
+        # FIXME (aw): remove me from here
+        self._update_mode = True
+
         (_, _, module_name) = full_qualified_module_name.rpartition('/')
 
         manifest_path = get_module_manifest(self._config.working_directory, full_qualified_module_name)
