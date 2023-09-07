@@ -1,34 +1,16 @@
 from dataclasses import dataclass
 from typing import Union
 
+from .types import TypeReference, create_type_reference_from_url, create_type_unit_from_definition
+
 JsonType = Union[str, list[str]]
 
 
 @dataclass
-class TypeReference:
-    name: str
-    unit: str
-
-    @property
-    def namespaces(self) -> list[str]:
-        return self.unit.split('/')
-
-
-@dataclass
 class TypeDefinition:
-    name: str
+    name: str  # only exists for refs
+    ref: TypeReference
     type: JsonType
-
-
-def create_type_reference_from_url(url: str):
-    if not url.startswith('/'):
-        raise Exception(f'Type reference url needs to start with /: {url}')
-
-    if '#/' not in url:
-        raise Exception(f'Type reference url needs to refer to a specific type with #/TypeName: {url}')
-
-    unit, name = url.lstrip('/').split('#/')
-    return TypeReference(name=name, unit=unit)
 
 
 @dataclass

@@ -4,7 +4,7 @@ from dataclasses import dataclass
 import yaml
 import jsonschema
 
-from .model import create_module_from_definition, create_interface_from_definition, create_type_from_definition
+from .model import create_module_from_definition, create_interface_from_definition, create_type_from_definition, create_type_unit_from_definition
 
 
 class Validator:
@@ -35,17 +35,22 @@ class DefinitionParser:
         self._pack = Validator(schema_dir)
         self._file_cache: dict[Path, any] = {}
 
-    def load_validated_module_def(self, module_manifest: Path, module_name: str):
+    def load_validated_module(self, module_manifest: Path, module_name: str):
         module_def = self._load_yaml(module_manifest, 'module')
 
         return create_module_from_definition(module_def, module_name)
 
-    def load_validated_type_def(self, type_file: Path, type_name: str):
+    def load_validated_type(self, type_file: Path, type_name: str):
         type_def = self._load_yaml(type_file, 'type')
 
         return create_type_from_definition(type_def, type_name)
+    
+    def load_validated_type_unit(self, type_file: Path, unit_name: str):
+        type_def = self._load_yaml(type_file, 'type')
 
-    def load_validated_interface_def(self, interface_file: Path, interface_name: str):
+        return create_type_unit_from_definition(type_def, unit_name)
+
+    def load_validated_interface(self, interface_file: Path, interface_name: str):
         interface_def = self._load_yaml(interface_file, 'interface')
 
         try:

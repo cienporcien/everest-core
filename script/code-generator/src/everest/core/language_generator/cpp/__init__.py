@@ -34,17 +34,12 @@ class CppGenerator(ILanguageGenerator):
     def generate_loader(self):
         pass
 
-    def generate_type(self):
-        pass
-
     def _clang_format(self, files: list[FileCreationInfo]):
         if self._disable_clang_format:
             return
-        
+
         for file in files:
             file.content = clang_format(self._clang_format_base_path, file.path.suffix, file.content)
-
-
 
     def _generate_module_core_files(self, module: Module, module_path: Path):
         module_vm = self._vm_factory.create_module(module)

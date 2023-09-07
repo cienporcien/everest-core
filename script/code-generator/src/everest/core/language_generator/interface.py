@@ -1,10 +1,11 @@
 from abc import ABC, abstractmethod
 from enum import Enum
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, asdict
 from pathlib import Path
 
 from everest.framework.schema import DefinitionParser
 from everest.framework.model import TypeDefinition, create_type_reference_from_url, Module
+from everest.framework.model.types import get_topological_sorted_type_list_from_unit
 
 from .common import resolve_everest_dir_path, get_module_manifest
 from .file_management import FileCreator, FileCreationMap, filter_files
@@ -27,6 +28,12 @@ class CreateModuleOptions:
     overwrite_if_exists: bool
     show_diff: bool
     file_filter: list[str]
+
+
+@dataclass
+class GenerateTypeOptions:
+    overwrite_if_exists: bool
+    show_diff: bool
 
 
 class ILanguageGenerator(ABC):
@@ -72,9 +79,15 @@ class ILanguageGenerator(ABC):
     def generate_loader(self):
         pass
 
-    @abstractmethod
-    def generate_type(self):
-        pass
+    def generate_type(self, options: GenerateTypeOptions, types: list[str]):
+        sample_type = types[0]
+        postfix = f'types/{sample_type}.yaml'
+        type_unit_path = resolve_everest_dir_path(self._config.everest_tree, postfix)
+
+        unit_model = self._validator.load_validated_type_unit(type_unit_path, sample_type)
+
+        print(unit_model)
+        get_topological_sorted_type_list_from_unit(unit_model)
 
     def _get_interface_model(self, interface_name: str):
         interface_path = resolve_everest_dir_path(self._config.everest_tree, f'interfaces/{interface_name}.yaml')

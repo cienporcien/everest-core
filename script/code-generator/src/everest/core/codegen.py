@@ -4,7 +4,7 @@ from pathlib import Path
 from . import __version__
 
 from .language_generator.cpp import CppGenerator
-from .language_generator.interface import GeneratorMethod, GeneratorConfig, CreateModuleOptions, ILanguageGenerator
+from .language_generator.interface import GeneratorMethod, GeneratorConfig, CreateModuleOptions, GenerateTypeOptions, ILanguageGenerator
 
 from .language_generator import SupportedLanguage
 
@@ -42,6 +42,10 @@ def dispatch_arguments(args: argparse.Namespace):
         file_filter = args.only.split(',') if args.only else None
         options = CreateModuleOptions(args.force, args.diff, file_filter)
         generator.create_module(options, args.module)
+
+    elif selected_method == GeneratorMethod.generate_type:
+        options = GenerateTypeOptions(args.force, args.diff)
+        generator.generate_type(options, args.types)
 
 
 def main():
