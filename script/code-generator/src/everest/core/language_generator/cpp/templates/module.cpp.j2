@@ -1,17 +1,19 @@
-{% from "helper_macros.j2" import print_spdx_line %}
+{% from "helper_macros.j2" import print_spdx_line, include_batches %}
 {{ print_spdx_line('Apache-2.0') }}
-#include "{{ info.module_header }}"
+
+{{ include_batches(includes) }}
+
 
 namespace module {
 
-void {{ info.class_name }}::init() {
-    {% for impl in provides %}
+void {{ class_name }}::init() {
+    {% for impl in module.provides %}
     invoke_init(*p_{{ impl.id }});
     {% endfor %}
 }
 
-void {{ info.class_name }}::ready() {
-    {% for impl in provides %}
+void {{ class_name }}::ready() {
+    {% for impl in module.provides %}
     invoke_ready(*p_{{ impl.id }});
     {% endfor %}
 }

@@ -47,6 +47,9 @@ def dispatch_arguments(args: argparse.Namespace):
         options = GenerateTypeOptions(args.force, args.diff)
         generator.generate_type(options, args.types)
 
+    elif selected_method == GeneratorMethod.generate_loader:
+        generator.generate_loader(args.module)
+
 
 def main():
 

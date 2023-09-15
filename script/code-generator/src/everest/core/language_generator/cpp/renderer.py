@@ -4,12 +4,14 @@ from pathlib import Path
 
 import jinja2 as j2
 
-from .util import snake_case, create_dummy_result
+from .util import snake_case
 
 
 class TemplateID(Enum):
     MODULE_HPP = 'module.hpp.j2'
     MODULE_CPP = 'module.cpp.j2'
+    LOADER_HPP = 'ld-ev.hpp.j2'
+    LOADER_CPP = 'ld-ev.cpp.j2'
     INTF_IMPL_HPP = 'interface-Impl.hpp.j2'
     INTF_IMPL_CPP = 'interface-Impl.cpp.j2'
 
@@ -23,7 +25,6 @@ class Renderer:
         env.globals['timestamp'] = datetime.utcnow()
         # FIXME (aw): which repo to use? everest or everest-framework?
         env.filters['snake_case'] = snake_case
-        env.filters['create_dummy_result'] = create_dummy_result
 
         self._templates = {e: env.get_template(e.value) for e in TemplateID}
 

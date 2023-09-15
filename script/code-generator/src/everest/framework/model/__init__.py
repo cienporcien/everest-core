@@ -1,22 +1,22 @@
 from dataclasses import dataclass
 from typing import Union
 
-from .types import TypeReference, create_type_reference_from_url, create_type_unit_from_definition
+from .types import Type, create_type_from_definition, create_type_unit_from_definition
 
-JsonType = Union[str, list[str]]
+RawJsonType = Union[str, list[str]]
 
 
-@dataclass
-class TypeDefinition:
-    name: str  # only exists for refs
-    ref: TypeReference
-    type: JsonType
+# @dataclass
+# class TypeDefinition:
+#     name: str  # only exists for refs
+#     ref: TypeReference
+#     type: JsonType
 
 
 @dataclass
 class ConfigItem:
     description: str
-    type: JsonType
+    type: Type
     default: any
 
 
@@ -29,12 +29,12 @@ class Metadata:
 @dataclass
 class CommandArgument:
     name: str
-    type: JsonType
+    type: Type
 
 
 @dataclass
 class CommandResult:
-    type: JsonType
+    type: Type
 
 
 @dataclass
@@ -45,7 +45,7 @@ class Command:
 
 @dataclass
 class Signal:
-    type: JsonType
+    type: Type
 
 
 @dataclass
@@ -92,7 +92,7 @@ def create_metadata_from_definition(d: dict) -> Metadata:
 def create_config_item_from_definition(d: dict) -> ConfigItem:
     return ConfigItem(
         description=d.get('description'),
-        type=d.get('type'),
+        type=create_type_from_definition(d),
         default=d.get('default', None)
     )
 
@@ -130,16 +130,16 @@ def create_command_from_definition(d: dict) -> Command:
     result: CommandResult = None
     result_d = d.get('result', None)
     if result_d:
-        result = CommandResult(result_d.get('type'))
+        result = CommandResult(create_type_from_definition(result_d))
 
     return Command(
-        arguments=[CommandArgument(name, e.get('type')) for name, e in d.get('arguments', {}).items()],
+        arguments=[CommandArgument(name, create_type_from_definition(e)) for name, e in d.get('arguments', {}).items()],
         result=result
     )
 
 
 def create_signal_from_definition(d: dict) -> Signal:
-    return Signal(d.get('type'))
+    return Signal(create_type_from_definition(d))
 
 
 def create_interface_from_definition(d: dict, interface_name: str) -> Interface:
@@ -151,8 +151,8 @@ def create_interface_from_definition(d: dict, interface_name: str) -> Interface:
     )
 
 
-def create_type_from_definition(d: dict, type_name: str):
-    return TypeDefinition(
-        name=type_name,
-        type=d.get('types').get(type_name).get('type')
-    )
+# def create_type_from_definition(d: dict, type_name: str):
+#     return TypeDefinition(
+#         name=type_name,
+#         type=d.get('types').get(type_name).get('type')
+#     )

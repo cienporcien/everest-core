@@ -1,46 +1,38 @@
-{% from "helper_macros.j2" import print_template_info, var_to_cpp, print_spdx_line %}
+{% from "helper_macros.j2" import print_template_info, print_spdx_line, include_batches, var_to_cpp, cpp_type  %}
 {{ print_spdx_line('Apache-2.0') }}
-{{ print_template_info('4') }}
+{{ print_template_info('5') }}
 
-#include "{{ info.ld_ev_header }}"
-
-#include "{{ info.module_header }}"
-{% for impl in provides %}
-#include "{{ impl.class_header }}"
-{% endfor %}
-
-#include <framework/runtime.hpp>
-#include <utils/types.hpp>
+{{ include_batches(includes) }}
 
 namespace module {
 
 // FIXME (aw): could this way of keeping static variables be changed somehow?
 static Everest::ModuleAdapter adapter {};
-static Everest::PtrContainer<{{info.class_name }}> mod_ptr {};
+static Everest::PtrContainer<{{module_class_name }}> mod_ptr {};
 
 // per module configs
 {# FIXME (aw): instead of being static, this could also be inside a map #}
-{% for impl in provides %}
+{% for impl in module.provides %}
 static {{ impl.id }}::Conf {{ impl.id }}_config;
 {% endfor %}
 static Conf module_conf;
 static ModuleInfo module_info;
 
 void LdEverest::init(ModuleConfigs module_configs, const ModuleInfo& mod_info) {
-    EVLOG_debug << "init() called on module {{ info.name }}";
+    EVLOG_debug << "init() called on module {{ module_name }}";
 
     // populate config for provided implementations
-    {% for impl in provides %}
+    {% for impl in module.provides %}
     auto {{ impl.id }}_config_input = std::move(module_configs["{{ impl.id }}"]);
     {% for item in impl.config %}
     {{ impl.id }}_config.{{ item.name }} = std::get<{{ item.cpp_type }}>({{ impl.id }}_config_input["{{ item.name }}"]);
     {% endfor %}
 
     {% endfor %}
-    {% if info.module_config|length %}
+    {% if module.config|length %}
 
-    {% for item in info.module_config %}
-    module_conf.{{ item.name }} = std::get<{{ item.cpp_type }}>(module_configs["!module"]["{{ item.name }}"]);
+    {% for item in module.config %}
+    module_conf.{{ item.name }} = std::get<{{ cpp_type(item.type) }}>(module_configs["!module"]["{{ item.name }}"]);
     {% endfor %}
     {% endif %}
 
@@ -50,7 +42,7 @@ void LdEverest::init(ModuleConfigs module_configs, const ModuleInfo& mod_info) {
 }
 
 void LdEverest::ready() {
-    EVLOG_debug << "ready() called on module {{ info.name }}";
+    EVLOG_debug << "ready() called on module {{ module.info.name }}";
     mod_ptr->ready();
 }
 
@@ -59,16 +51,16 @@ void register_module_adapter(Everest::ModuleAdapter module_adapter) {
 }
 
 std::vector<Everest::cmd> everest_register(const json& connections) {
-    EVLOG_debug << "everest_register() called on module {{ info.name }}";
+    EVLOG_debug << "everest_register() called on module {{ module.info.name }}";
 
     adapter.check_complete();
 
-    {% for impl in provides %}
+    {% for impl in module.provides %}
     auto p_{{ impl.id }} = std::make_unique<{{ impl.id }}::{{ impl.class_name }}>(&adapter, mod_ptr, {{ impl.id }}_config);
     adapter.gather_cmds(*p_{{ impl.id }});
 
     {% endfor %}
-    {% for requirement in requires %}
+    {% for requirement in module.requires %}
     {# FIXME: needs refactoring #}
     {% if requirement.is_vector %}
     auto r_{{ requirement.id }} = std::vector<std::unique_ptr<{{ requirement.class_name }}>>();
@@ -93,19 +85,19 @@ std::vector<Everest::cmd> everest_register(const json& connections) {
         (void) connections; // no requirements -> unused connections
     {% endfor %}
 
-    {% if info.enable_external_mqtt %}
+    {% if module.info.enable_external_mqtt %}
     static Everest::MqttProvider mqtt_provider(adapter);
     {% endif %}
     static Everest::TelemetryProvider telemetry_provider(adapter);
 
-    static {{ info.class_name }} module(
+    static {{ module_class_name }} module(
     module_info,
-    {%- if info.enable_external_mqtt %}mqtt_provider, {% endif -%}
-    {%- if info.enable_telemetry %}telemetry_provider, {% endif -%}
-    {%- for impl in provides -%}
+    {%- if module.info.enable_external_mqtt %}mqtt_provider, {% endif -%}
+    {%- if module.info.enable_telemetry %}telemetry_provider, {% endif -%}
+    {%- for impl in module.provides -%}
     std::move(p_{{ impl.id }}){{ ', ' }}
     {%- endfor -%}
-    {%- for requirement in requires -%}
+    {%- for requirement in module.requires -%}
     std::move(r_{{ requirement.id }}){{ ', ' }}
     {%- endfor -%}
     module_conf);

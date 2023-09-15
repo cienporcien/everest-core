@@ -1,27 +1,27 @@
-{% from "helper_macros.j2" import handle_cmd_signature, print_spdx_line %}
+{% from "helper_macros.j2" import print_spdx_line, include_batches, handle_cmd_signature %}
 {{ print_spdx_line('Apache-2.0') }}
 
-#include "{{ info.class_name}}.hpp"
+{{ include_batches(includes) }}
 
 namespace module {
-namespace {{ info.interface_implementation_id }} {
+namespace {{ namespace }} {
 
-void {{ info.class_name }}::init() {
-
-}
-
-void {{ info.class_name }}::ready() {
+void {{ class_name }}::init() {
 
 }
-{% for cmd in cmds %}
 
-{{ handle_cmd_signature(cmd, info.class_name, '::'+info.interface) }}{
+void {{ class_name }}::ready() {
+
+}
+{% for cmd in interface.cmds %}
+
+{{ handle_cmd_signature(cmd, class_name) }}{
     // your code for cmd {{ cmd.name }} goes here
     {% if cmd.result %}
-    return {{ cmd.result.json_type|create_dummy_result }};
+    return {{ cmd.result.type.dummy_result }};
     {% endif %}
 }
 {% endfor %}
 
-} // namespace {{ info.interface_implementation_id }}
+} // namespace {{ namespace }}
 } // namespace module

@@ -1,4 +1,5 @@
 import everest.framework.model as model
+import everest.framework.model.types as types
 
 from . import view_models as vm
 from .util import snake_case, get_implementation_file_paths
@@ -8,32 +9,35 @@ class ViewModelFactory:
     def __init__(self):
         pass
 
-    def create_typed_item(self, name: str, json_type):
-        def _get_cpp_type(json_type):
-            _map: dict[str, str] = {
-                "null": "std::nullptr_t",
-                "integer": "int",
-                "number": "double",
-                "string": "std::string",
-                "boolean": "bool",
-                "array": "Array",
-                "object": "Object",
-            }
+    def create_typed_item(self, name: str, type: types.Type):
 
-            if not isinstance(json_type, list):
-                return _map[json_type]
+        type_id_mapping: dict[str, str] = {
+            'null': 'std::nullptr_t',
+            'integer': 'int',
+            'float': 'double',
+            'string': 'std::string',
+            'boolean': 'bool',
+            'array': 'Array',
+            'object': 'Object'        }
 
-            cpp_type = [_map[e] for e in json_type if e != 'null'].sort()
-            if 'null' in json_type:
-                cpp_type.insert(0, _map['null'])
+        fqtn: str = None
 
-            return cpp_type
+        if isinstance(type, types.VariantType):
+            type_ids = [e.ID for e in type.items]
+            fqtn = [type_id_mapping[e] for e in type_ids if e != 'null'].sort()
+            if 'null' in type_ids:
+                fqtn.insert(0, type_id_mapping['null'])
+            
+            fqtn = ', '.join(fqtn)
+            fqtn = f'std::variant<{fqtn}>'
+        elif isinstance(type, types.TypeReference):
+            fqtn = 'types::' + '::'.join(type.namespaces) + f'::{type.name}'
+        else:
+            fqtn = type_id_mapping[type.ID]
 
         return vm.TypedItem(
             name=name,
-            is_variant=isinstance(json_type, list),
-            json_type=json_type,
-            cpp_type=_get_cpp_type(json_type)
+            type=vm.TypeViewModel(type.ID, fqtn)
         )
 
     def create_implementation(self, impl: model.Implementation, impl_name: str):
@@ -48,7 +52,6 @@ class ViewModelFactory:
             class_header=impl_hpp_path,
             cpp_file_rel_path=impl_cpp_path,
             base_class=f'{interface}ImplBase',
-            base_class_header=f'generated/interfaces/{interface}/Implementation.hpp'
         )
 
     def create_requirement(self, req: model.Requirement, req_name: str):
@@ -58,18 +61,11 @@ class ViewModelFactory:
             is_vector=(req.min_connections != 1 or req.max_connections != 1),
             type=req.interface,
             class_name=f'{req.interface}Intf',
-            exports_header=f'generated/interfaces/{req.interface}/Interface.hpp'
         )
 
     def create_module_meta(self, module: model.Module):
         return vm.ModuleMetaViewModel(
             name=module.name,
-            class_name=module.name,
-            desc=module.description,
-            hpp_guard=snake_case(module.name).upper() + '_HPP',
-            module_header=f'{module.name}.hpp',
-            module_config=[self.create_typed_item(name, e.type) for name, e in module.config.items()],
-            ld_ev_header='ld-ev.hpp',
             enable_external_mqtt=module.enable_external_mqtt,
             enable_telemetry=module.enable_telemetry
         )
@@ -78,6 +74,7 @@ class ViewModelFactory:
         return vm.ModuleViewModel(
             provides=[self.create_implementation(e, name) for name, e in module.implements.items()],
             requires=[self.create_requirement(e, name) for name, e in module.requires.items()],
+            config=[self.create_typed_item(name, e.type) for name, e in module.config.items()],
             info=self.create_module_meta(module)
         )
 
@@ -101,10 +98,5 @@ class ViewModelFactory:
         return vm.InterfaceViewModel(
             cmds=[self.create_command(e, name) for name, e in interface.commands.items()],
             vars=[self.create_typed_item(name, e.type) for name, e in interface.signals.items()],
-            info=vm.InterfaceMetaViewModel(
-                base_class_header=f'generated/interfaces/{interface.name}/Implementation.hpp',
-                interface=interface.name,
-                desc=interface.description,
-                type_headers=[]
-            )
+            name=interface.name
         )

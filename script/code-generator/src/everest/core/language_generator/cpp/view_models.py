@@ -1,14 +1,37 @@
 from dataclasses import dataclass
 
-from everest.framework.model import JsonType
+from everest.framework.model import RawJsonType
+
+
+@dataclass
+class TypeViewModel:
+    id: str
+    fully_qualified_type_name: str
+
+    @property
+    def fqtn(self):
+        return self.fully_qualified_type_name
+
+    @property
+    def dummy_result(self):
+        result_map = {
+            'null': 'nullptr',
+            'boolean': 'true',
+            'integer': '42',
+            'float': '3.14',
+            'string': '"everest"',
+            'variant': '{}',
+            'object': '{}',
+            'reference': '{}'
+        }
+
+        return result_map[self.id]
 
 
 @dataclass
 class TypedItem:
     name: str
-    is_variant: bool
-    json_type: JsonType
-    cpp_type: any
+    type: TypeViewModel
 
 
 @dataclass
@@ -21,7 +44,6 @@ class ImplementationViewModel:
     class_header: str
     cpp_file_rel_path: str
     base_class: str
-    base_class_header: str
 
 
 @dataclass
@@ -30,7 +52,6 @@ class RequirementViewModel:
     is_vector: bool
     type: str
     class_name: str
-    exports_header: str
 
 
 @dataclass
@@ -52,24 +73,20 @@ class InterfaceMetaViewModel:
 class InterfaceViewModel:
     vars: list[TypedItem]
     cmds: list[CommandViewModel]
-    info: InterfaceMetaViewModel
+    name: str
+    # info: InterfaceMetaViewModel
 
 
 @dataclass
 class ModuleMetaViewModel:
     name: str
-    class_name: str
-    desc: str
-    module_header: str
-    hpp_guard: str
-    module_config: list[TypedItem]
-    ld_ev_header: str
     enable_external_mqtt: bool
     enable_telemetry: bool
 
 
 @dataclass
 class ModuleViewModel:
-    provides: dict[str, ImplementationViewModel]
-    requires: dict[str, RequirementViewModel]
+    provides: list[ImplementationViewModel]
+    requires: list[RequirementViewModel]
+    config: list[TypedItem]
     info: ModuleMetaViewModel

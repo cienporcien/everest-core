@@ -4,7 +4,7 @@ from dataclasses import dataclass, field, asdict
 from pathlib import Path
 
 from everest.framework.schema import DefinitionParser
-from everest.framework.model import TypeDefinition, create_type_reference_from_url, Module
+from everest.framework.model import Module
 from everest.framework.model.types import get_topological_sorted_type_list_from_unit
 
 from .common import resolve_everest_dir_path, get_module_manifest
@@ -51,7 +51,7 @@ class ILanguageGenerator(ABC):
         (_, _, module_name) = full_qualified_module_name.rpartition('/')
 
         manifest_path = get_module_manifest(self._config.working_directory, full_qualified_module_name)
-        module_model = self._validator.load_validated_module_def(manifest_path, module_name)
+        module_model = self._validator.load_validated_module(manifest_path, module_name)
 
         # here we shall add the doc files
         module_files = self._generate_module_files(module_model, manifest_path.parent)
@@ -75,9 +75,21 @@ class ILanguageGenerator(ABC):
     def generate_interface(self):
         pass
 
-    @abstractmethod
-    def generate_loader(self):
-        pass
+    def generate_loader(self, full_qualified_module_name: str):
+        (_, _, module_name) = full_qualified_module_name.rpartition('/')
+
+        manifest_path = get_module_manifest(self._config.working_directory, full_qualified_module_name)
+        module_model = self._validator.load_validated_module(manifest_path, module_name)
+
+        # FIXME (aw): this loader might already be cpp specific, so how to deal with that?
+        loader_files = self._generate_loader_files(module_model, manifest_path.parent)
+
+        # module_files = filter_files(module_files, options.file_filter)
+
+        if not loader_files:
+            return
+
+        self._file_creator(loader_files, show_diff=True)
 
     def generate_type(self, options: GenerateTypeOptions, types: list[str]):
         sample_type = types[0]
@@ -92,27 +104,27 @@ class ILanguageGenerator(ABC):
     def _get_interface_model(self, interface_name: str):
         interface_path = resolve_everest_dir_path(self._config.everest_tree, f'interfaces/{interface_name}.yaml')
 
-        interface_model = self._validator.load_validated_interface_def(interface_path, interface_name)
+        interface_model = self._validator.load_validated_interface(interface_path, interface_name)
 
         last_mtime = interface_path.stat().st_mtime
 
         return interface_model, last_mtime
 
-    def _get_type_model(self, type_reference_url: str):
-        found = self._type_cache.get(type_reference_url, None)
-        if found:
-            return found
+    # def _get_type_model(self, type_reference_url: str):
+    #     found = self._type_cache.get(type_reference_url, None)
+    #     if found:
+    #         return found
 
-        # not found
-        ref = create_type_reference_from_url(type_reference_url)
+    #     # not found
+    #     ref = create_type_reference_from_url(type_reference_url)
 
-        postfix = f'types/{ref.unit}.yaml'
-        type_unit_path = resolve_everest_dir_path(self._config.everest_tree, postfix)
+    #     postfix = f'types/{ref.unit}.yaml'
+    #     type_unit_path = resolve_everest_dir_path(self._config.everest_tree, postfix)
 
-        type_model = self._validator.load_validated_type_def(type_unit_path, ref.name)
+    #     type_model = self._validator.load_validated_type_def(type_unit_path, ref.name)
 
-        last_mtime = type_unit_path.stat().st_mtime
+    #     last_mtime = type_unit_path.stat().st_mtime
 
-        self._type_cache[type_reference_url] = type_model, last_mtime
+    #     self._type_cache[type_reference_url] = type_model, last_mtime
 
-        return type_model, last_mtime
+    #     return type_model, last_mtime

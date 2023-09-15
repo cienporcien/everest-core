@@ -2,6 +2,9 @@ from pathlib import Path
 import subprocess
 import shutil
 
+from everest.framework.model import types
+
+
 def snake_case(word: str) -> str:
     """Convert capital case to snake case
     Only alphanumerical characters are allowed.  Only inserts camelcase
@@ -32,32 +35,13 @@ def snake_case(word: str) -> str:
     return out
 
 
-def create_dummy_result(json_type) -> str:
-    def primitive_to_sample_value(type):
-        if type == 'boolean':
-            return 'true'
-        elif type == 'integer':
-            return '42'
-        elif type == 'number':
-            return '3.14'
-        elif type == 'string':
-            return '"everest"'
-        elif type == 'object':
-            return '{}'
-        else:
-            raise Exception(f'This json type "{type}" is not known or not implemented')
-
-    if isinstance(json_type, list):
-        return '{}'  # default initialization for variant
-    else:
-        return primitive_to_sample_value(json_type)
-    
 def get_implementation_file_paths(interface: str, impl_name: str) -> tuple[str, str]:
     common_part = f'{impl_name}/{interface}'
     return (
         f'{common_part}Impl.hpp',
         f'{common_part}Impl.cpp'
     )
+
 
 def clang_format(clang_format_config_dir: Path, file_suffix: str, content: str) -> str:
     # check if we handle cpp and hpp files

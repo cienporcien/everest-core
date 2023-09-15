@@ -11,6 +11,7 @@ it's questionable if we really need to model this again 1:1 here
 
 @dataclass(frozen=True)
 class TypeReference:
+    ID = 'reference'
     name: str
     unit: str
 
@@ -25,32 +26,42 @@ class TypeReference:
 
 @dataclass
 class NullType:
-    pass
+    ID = 'null'
 
 
 @dataclass
 class BooleanType:
-    pass
+    ID = 'boolean'
 
 
 @dataclass
 class IntegerType:
+    ID = 'integer'
     format: str
 
 
 @dataclass
 class NumberType:
+    ID = 'float'
     format: str
 
 
 @dataclass
 class StringType:
+    ID = 'string'
     is_enum: bool
 
 
 @dataclass
 class ArrayType:
+    ID = 'array'
     items: 'Type'
+
+
+@dataclass
+class VariantType:
+    ID = 'variant'
+    items: list['Type']
 
 
 @dataclass
@@ -61,10 +72,11 @@ class JsonObjectProperty:
 
 @dataclass
 class ObjectType:
+    ID = 'object'
     properties: list[JsonObjectProperty]
 
 
-Type = Union[TypeReference, NullType, BooleanType, IntegerType, NumberType, StringType, ArrayType, ObjectType]
+Type = Union[TypeReference, NullType, BooleanType, IntegerType, NumberType, StringType, ArrayType, VariantType, ObjectType]
 
 
 @dataclass
@@ -95,7 +107,25 @@ def create_object_from_definition(d: dict):
     return ObjectType(properties)
 
 
-def create_type_from_definition(d: dict):
+def create_variant_type_from_definition(types: list[str]):
+    def create_simple_type(type_name: str):
+        if type_name == 'null':
+            return NullType()
+        elif type_name == 'boolean':
+            return BooleanType()
+        elif type_name == 'integer':
+            return IntegerType(None)
+        elif type_name == 'number':
+            return NumberType(None)
+        elif type_name == 'string':
+            return StringType(False)
+        else:
+            raise Exception(f'Variant type with does not yet support {type_name} type')
+
+    return VariantType([create_simple_type(e) for e in types])
+
+
+def create_type_from_definition(d: dict) -> Type:
     ref = d.get('$ref', None)
 
     if ref:
@@ -105,11 +135,11 @@ def create_type_from_definition(d: dict):
     type = d.get('type', None)
 
     if type == None:
-        raise Exception('Type definition requires a type keyword')
+        raise Exception('Type definition requires a type keyword, if no $ref is used')
 
     # dispatch the type
     if isinstance(type, list):
-        raise NotImplementedError('Variadic types not yet implemeted')
+        return create_variant_type_from_definition(type)
 
     # FIXME (aw): do we need to check here, that type is indeed a string instance?
     if type == 'null':
@@ -121,6 +151,7 @@ def create_type_from_definition(d: dict):
     elif type == 'number':
         return NumberType(format=d.get('format', None))
     elif type == 'string':
+        # FIXME (aw): enum handling!
         return StringType(False)
     elif type == 'array':
         return ArrayType(items=create_type_from_definition(d.get('items')))
