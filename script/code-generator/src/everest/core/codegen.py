@@ -4,37 +4,39 @@ from pathlib import Path
 from . import __version__
 
 from .language_generator.cpp import CppGenerator
-from .language_generator.interface import GeneratorMethod, GeneratorConfig, CreateModuleOptions, GenerateTypeOptions, ILanguageGenerator
+from .language_generator.interface import GeneratorMethod, GeneratorConfig, CreateModuleOptions, GenerateTypeOptions, GenerateRuntimeOptions, ILanguageGenerator
 
 from .language_generator import SupportedLanguage
 
 
 def create_generator_config(args: argparse.Namespace) -> GeneratorConfig:
+    working_directory = Path(args.work_dir)
+    generated_output_dir = Path(args.output_dir) if args.output_dir else working_directory / 'build/generated'
     return GeneratorConfig(
-        working_directory=Path(args.work_dir).resolve(),
+        working_directory=working_directory.resolve(),
         everest_tree=[Path(e).resolve() for e in args.everest_dir],
-        schema_directory=Path(args.schemas_dir).resolve()
+        schema_directory=Path(args.schemas_dir).resolve(),
+        generated_output_directory=generated_output_dir.resolve()
     )
 
 
-def create_language_generator(args: argparse.Namespace) -> ILanguageGenerator:
+def create_language_generator(args: argparse.Namespace, config: GeneratorConfig) -> ILanguageGenerator:
     selected_language = args.lang
 
     if selected_language not in SupportedLanguage.__members__:
         raise Exception(f'unsupported language {selected_language}')
 
-    generator_config = create_generator_config(args)
-
     if selected_language == SupportedLanguage.cpp.name:
         return CppGenerator(
-            generator_config,
+            config,
             disable_clang_format=args.disable_clang_format,
             clang_format_base_path=args.clang_format_file
         )
 
 
 def dispatch_arguments(args: argparse.Namespace):
-    generator = create_language_generator(args)
+    generator_config = create_generator_config(args)
+    generator = create_language_generator(args, generator_config)
 
     selected_method = args.selected_method
 
@@ -99,6 +101,7 @@ def main():
                                    'For a list of available files use "--only which".')
     mod_update_parser.set_defaults(selected_method=GeneratorMethod.update_module)
 
+    # FIXME (aw): this should be something like module runtime generated things, could be a loader or also other clutter
     mod_genld_parser = mod_actions.add_parser(
         'generate-loader', aliases=['gl'], help='generate everest loader')
     mod_genld_parser.add_argument(

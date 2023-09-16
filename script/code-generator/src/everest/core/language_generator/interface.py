@@ -19,6 +19,7 @@ class GeneratorConfig:
     working_directory: Path
     everest_tree: list[Path]
     schema_directory: Path
+    generated_output_directory: Path
 
     # FIXME (aw): should do some validation here!
 
@@ -28,6 +29,11 @@ class CreateModuleOptions:
     overwrite_if_exists: bool
     show_diff: bool
     file_filter: list[str]
+
+
+@dataclass
+class GenerateRuntimeOptions:
+    output_dir: Path
 
 
 @dataclass

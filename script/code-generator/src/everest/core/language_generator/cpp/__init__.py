@@ -164,7 +164,7 @@ class CppGenerator(ILanguageGenerator):
         module_vm = self._vm_factory.create_module(module)
 
         last_mtime = (module_path / 'manifest.yaml').stat().st_mtime  # FIXME
-        out_dir = self._config.working_directory / 'build/generated/modules' / module.name  # FIXME (aw)
+        out_dir = self._config.generated_output_directory / 'modules' / module.name
 
         template_data = {
             'hpp_guard': 'LD_EV_HPP',
