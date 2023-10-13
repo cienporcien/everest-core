@@ -1,7 +1,10 @@
 from dataclasses import dataclass
 from pathlib import Path
+from enum import Enum
 import shutil
 import subprocess
+
+FileCreationStrategy = Enum('FileCreationStrategy', ['create', 'update'])
 
 
 @dataclass
@@ -11,6 +14,7 @@ class FileCreationInfo:
     content: str
     path: Path
     last_mtime: float
+    strategy: FileCreationStrategy = FileCreationStrategy.create
 
 
 FileCreationMap = dict[str, list[FileCreationInfo]]
@@ -81,6 +85,36 @@ def print_diff(file: FileCreationInfo):
         print(diff)
 
 
+def create_file(file_info: FileCreationInfo, overwrite: bool):
+    file_path = file_info.path
+
+    if file_info.strategy == FileCreationStrategy.update:
+        if file_path.exists():
+            if file_path.stat().st_mtime > file_info.last_mtime and not overwrite:
+                return
+
+        else:
+            raise Exception('Trying to update a file, that does not exist (not yet implemented)')
+
+    elif file_info.strategy == FileCreationStrategy.create:
+        if file_path.exists() and not overwrite:
+            return
+
+    else:
+        raise Exception(f'Unknown FileCreationStrategy: {file_info.strategy}')
+
+    if file_path.exists() and not overwrite:
+        return
+
+    file_dir = file_path.parent
+    if not file_dir.exists():
+        file_dir.mkdir(parents=True)
+
+    print(f'Writing to {file_path}')
+
+    file_path.write_text(file_info.content)
+
+
 class FileCreator:
     def __init__(self):
         pass
@@ -95,6 +129,9 @@ class FileCreator:
             return
 
         for section, file_list in files.items():
+            [create_file(e, overwrite) for e in file_list]
+
+            # FIXME (aw): remove debugging
             print(f'Section: {section}')
             for file in file_list:
                 print(f' -> {file.abbreviation}')

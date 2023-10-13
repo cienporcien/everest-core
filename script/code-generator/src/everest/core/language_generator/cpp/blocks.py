@@ -9,8 +9,8 @@ class Blocks:
             regex='^(?P<indent>\s*)// ev@(?P<uuid>[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}):(?P<version>.*)$'
         )
         self._cmake_calculator = BlockCalculator(
-            format='// ev@{uuid}:{version}',
-            regex='^(?P<indent>\s*)// ev@(?P<uuid>[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}):(?P<version>.*)$'
+            format='# ev@{uuid}:{version}',
+            regex='^(?P<indent>\s*)# ev@(?P<uuid>[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}):(?P<version>.*)$'
         )
 
     def get_cmakelist_blocks(self, file_path: Path, update: bool):

@@ -3,7 +3,7 @@ from pathlib import Path
 from everest.framework.model import Module
 
 from everest.core.language_generator.interface import ILanguageGenerator, GeneratorConfig
-from everest.core.language_generator.file_management import FileCreationInfo
+from everest.core.language_generator.file_management import FileCreationInfo, FileCreationStrategy
 
 
 from .renderer import Renderer, TemplateID
@@ -29,9 +29,6 @@ class CppGenerator(ILanguageGenerator):
         self._render = Renderer()
         self._vm_factory = ViewModelFactory()
 
-    def update_module(self):
-        pass
-
     def generate_interface(self):
         pass
 
@@ -42,7 +39,7 @@ class CppGenerator(ILanguageGenerator):
         for file in files:
             file.content = clang_format(self._clang_format_base_path, file.path.suffix, file.content)
 
-    def _generate_module_core_files(self, module: Module, module_path: Path):
+    def _generate_module_core_files(self, module: Module, module_path: Path, update_only: bool):
         module_vm = self._vm_factory.create_module(module)
         hpp_file_path = module_path / f'{module.name}.hpp'
 
@@ -52,8 +49,10 @@ class CppGenerator(ILanguageGenerator):
         implementation_headers = [f'<generated/interfaces/{e.type}/Implementation.hpp>' for e in module_vm.provides]
         requirement_headers = [f'<generated/interfaces/{e.type}/Interface.hpp>' for e in module_vm.requires]
 
+        files_to_create: list[FileCreationInfo] = []
+
         template_data = {
-            'blocks': blocks.get_module_hpp_blocks(hpp_file_path, self._update_mode),
+            'blocks': blocks.get_module_hpp_blocks(hpp_file_path, update_only),
             'module': module_vm,
             'hpp_guard': snake_case(module.name).upper() + '_HPP',
             'config': module_vm.config,
@@ -65,33 +64,57 @@ class CppGenerator(ILanguageGenerator):
             ]
         }
 
-        hpp_info = FileCreationInfo(
-            abbreviation='module.hpp',
-            printable_name=f'{module.name}.hpp',
-            content=self._render(TemplateID.MODULE_HPP, template_data),
-            path=hpp_file_path,
-            last_mtime=last_mtime
+        files_to_create.append(
+            FileCreationInfo(
+                abbreviation='module.hpp',
+                printable_name=f'{module.name}.hpp',
+                content=self._render(TemplateID.MODULE_HPP, template_data),
+                path=hpp_file_path,
+                last_mtime=last_mtime,
+                strategy=FileCreationStrategy.update if update_only else FileCreationStrategy.create
+            )
         )
+
+        cmakelists_file_path = module_path / 'CMakeLists.txt'
 
         template_data = {
-            'module': module_vm,
-            'includes': [
-                IncludeBatch(None, [f'"{module.name}.hpp"'])
-            ],
-            'class_name': module.name,
+            'blocks': blocks.get_cmakelist_blocks(cmakelists_file_path, update_only),
+            'impl_files': [e.cpp_file_rel_path for e in module_vm.provides]
         }
 
-        cpp_info = FileCreationInfo(
-            abbreviation='module.cpp',
-            printable_name=f'{module.name}.cpp',
-            content=self._render(TemplateID.MODULE_CPP, template_data),
-            path=module_path / f'{module.name}.cpp',
-            last_mtime=last_mtime
+        files_to_create.append(
+            FileCreationInfo(
+                abbreviation='cmakelists',
+                printable_name='CMakeLists.txt',
+                content=self._render(TemplateID.CMAKEFILE, template_data),
+                path=cmakelists_file_path,
+                last_mtime=last_mtime,
+                strategy=FileCreationStrategy.update if update_only else FileCreationStrategy.create
+            )
         )
 
-        return [hpp_info, cpp_info]
+        if not update_only:
+            template_data = {
+                'module': module_vm,
+                'includes': [
+                    IncludeBatch(None, [f'"{module.name}.hpp"'])
+                ],
+                'class_name': module.name,
+            }
 
-    def _generate_module_implementation_files(self, module: Module, module_path: Path):
+            files_to_create.append(
+                FileCreationInfo(
+                    abbreviation='module.cpp',
+                    printable_name=f'{module.name}.cpp',
+                    content=self._render(TemplateID.MODULE_CPP, template_data),
+                    path=module_path / f'{module.name}.cpp',
+                    last_mtime=last_mtime
+                )
+            )
+
+        return files_to_create
+
+    def _generate_module_implementation_files(self, module: Module, module_path: Path, update_only: bool):
         impl_files: list[FileCreationInfo] = []
         for impl_name, impl in module.implements.items():
             interface_name = impl.interface
@@ -107,7 +130,7 @@ class CppGenerator(ILanguageGenerator):
 
             template_data = {
                 'interface': interface_vm,
-                'blocks': blocks.get_implementation_hpp_blocks(module_path / hpp_file_name, self._update_mode),
+                'blocks': blocks.get_implementation_hpp_blocks(module_path / hpp_file_name, update_only),
                 'config': [self._vm_factory.create_typed_item(name, e.type) for name, e in impl.config.items()],
                 'class_name': implementation_class_name,
                 'base_class_name': implementation_base_class_name,
@@ -126,31 +149,34 @@ class CppGenerator(ILanguageGenerator):
                 printable_name=hpp_file_name,
                 content=self._render(TemplateID.INTF_IMPL_HPP, template_data),
                 path=module_path / hpp_file_name,
-                last_mtime=last_mtime
+                last_mtime=last_mtime,
+                strategy=FileCreationStrategy.update if update_only else FileCreationStrategy.create
+
             ))
 
-            template_data = {
-                'interface': interface_vm,
-                'includes': [
-                    IncludeBatch(None, [f'"{implementation_class_name}.hpp"'])
-                ],
-                'class_name': implementation_class_name,
-                'namespace': impl_name,
-            }
+            if not update_only:
+                template_data = {
+                    'interface': interface_vm,
+                    'includes': [
+                        IncludeBatch(None, [f'"{implementation_class_name}.hpp"'])
+                    ],
+                    'class_name': implementation_class_name,
+                    'namespace': impl_name,
+                }
 
-            impl_files.append(FileCreationInfo(
-                abbreviation=f'{impl_name}.cpp',
-                printable_name=cpp_file_name,
-                content=self._render(TemplateID.INTF_IMPL_CPP, template_data),
-                path=module_path / cpp_file_name,
-                last_mtime=last_mtime
-            ))
+                impl_files.append(FileCreationInfo(
+                    abbreviation=f'{impl_name}.cpp',
+                    printable_name=cpp_file_name,
+                    content=self._render(TemplateID.INTF_IMPL_CPP, template_data),
+                    path=module_path / cpp_file_name,
+                    last_mtime=last_mtime
+                ))
 
         return impl_files
 
-    def _generate_module_files(self, module: Module, module_path: Path):
-        core_files = self._generate_module_core_files(module, module_path)
-        implementation_files = self._generate_module_implementation_files(module, module_path)
+    def _generate_module_files(self, module: Module, module_path: Path, update_only: bool):
+        core_files = self._generate_module_core_files(module, module_path, update_only)
+        implementation_files = self._generate_module_implementation_files(module, module_path, update_only)
 
         self._clang_format(core_files + implementation_files)
 
@@ -182,7 +208,7 @@ class CppGenerator(ILanguageGenerator):
             last_mtime=last_mtime
         ))
 
-        implementation_headers = [f'"{e.id}/{e.type}Impl.hpp>"' for e in module_vm.provides]
+        implementation_headers = [f'"{e.id}/{e.type}Impl.hpp"' for e in module_vm.provides]
 
         template_data = {
             'module': module_vm,

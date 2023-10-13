@@ -14,6 +14,7 @@ class TemplateID(Enum):
     LOADER_CPP = 'ld-ev.cpp.j2'
     INTF_IMPL_HPP = 'interface-Impl.hpp.j2'
     INTF_IMPL_CPP = 'interface-Impl.cpp.j2'
+    CMAKEFILE = 'CMakeLists.txt.j2'
 
 
 class Renderer:

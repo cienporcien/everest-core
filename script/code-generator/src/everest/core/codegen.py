@@ -4,14 +4,15 @@ from pathlib import Path
 from . import __version__
 
 from .language_generator.cpp import CppGenerator
-from .language_generator.interface import GeneratorMethod, GeneratorConfig, CreateModuleOptions, GenerateTypeOptions, GenerateRuntimeOptions, ILanguageGenerator
+from .language_generator.interface import GeneratorMethod, GeneratorConfig, GenerateModuleOptions, GenerateTypeOptions, GenerateRuntimeOptions, ILanguageGenerator
 
 from .language_generator import SupportedLanguage
 
 
 def create_generator_config(args: argparse.Namespace) -> GeneratorConfig:
     working_directory = Path(args.work_dir)
-    generated_output_dir = Path(args.output_dir) if args.output_dir else working_directory / 'build/generated'
+    generated_output_dir = Path(args.output_dir) if 'output_dir' in args else working_directory / 'build/generated'
+
     return GeneratorConfig(
         working_directory=working_directory.resolve(),
         everest_tree=[Path(e).resolve() for e in args.everest_dir],
@@ -40,10 +41,15 @@ def dispatch_arguments(args: argparse.Namespace):
 
     selected_method = args.selected_method
 
-    if selected_method == GeneratorMethod.create_module:
+    if selected_method == GeneratorMethod.create_module or selected_method == GeneratorMethod.update_module:
         file_filter = args.only.split(',') if args.only else None
-        options = CreateModuleOptions(args.force, args.diff, file_filter)
-        generator.create_module(options, args.module)
+        options = GenerateModuleOptions(
+            overwrite_if_exists=args.force,
+            update_only=(selected_method == GeneratorMethod.update_module),
+            show_diff=args.diff,
+            file_filter=file_filter)
+
+        generator.generate_module(options, args.module)
 
     elif selected_method == GeneratorMethod.generate_type:
         options = GenerateTypeOptions(args.force, args.diff)

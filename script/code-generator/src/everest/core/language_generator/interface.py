@@ -25,8 +25,9 @@ class GeneratorConfig:
 
 
 @dataclass
-class CreateModuleOptions:
+class GenerateModuleOptions:
     overwrite_if_exists: bool
+    update_only: bool
     show_diff: bool
     file_filter: list[str]
 
@@ -48,33 +49,23 @@ class ILanguageGenerator(ABC):
         self._validator = DefinitionParser(config.schema_directory)
         self._type_cache: dict[str, tuple[TypeDefinition, float]] = {}
         self._file_creator = FileCreator()
-        self._update_mode = False  # NOTE (aw): questionable, if this really belongs here
 
-    def create_module(self, options: CreateModuleOptions, full_qualified_module_name: str):
-        # FIXME (aw): remove me from here
-        self._update_mode = True
+    def generate_module(self, options: GenerateModuleOptions, full_qualified_module_name: str):
 
         (_, _, module_name) = full_qualified_module_name.rpartition('/')
 
         manifest_path = get_module_manifest(self._config.working_directory, full_qualified_module_name)
         module_model = self._validator.load_validated_module(manifest_path, module_name)
 
-        # here we shall add the doc files
-        module_files = self._generate_module_files(module_model, manifest_path.parent)
+        # FIXME (aw): where to place the doc files?
+        module_files = self._generate_module_files(module_model, manifest_path.parent, options.update_only)
 
         module_files = filter_files(module_files, options.file_filter)
 
-        if not module_files:
-            return
-
-        self._file_creator(module_files, show_diff=options.show_diff)
+        self._file_creator(module_files, overwrite=options.overwrite_if_exists, show_diff=options.show_diff)
 
     @abstractmethod
-    def _generate_module_files(self, module_model: Module, module_path: Path) -> FileCreationMap:
-        pass
-
-    @abstractmethod
-    def update_module(self):
+    def _generate_module_files(self, module_model: Module, module_path: Path, update_only: bool) -> FileCreationMap:
         pass
 
     @abstractmethod
@@ -90,12 +81,11 @@ class ILanguageGenerator(ABC):
         # FIXME (aw): this loader might already be cpp specific, so how to deal with that?
         loader_files = self._generate_loader_files(module_model, manifest_path.parent)
 
-        # module_files = filter_files(module_files, options.file_filter)
-
         if not loader_files:
             return
 
-        self._file_creator(loader_files, show_diff=True)
+        # FIXME (aw): overwrite / force-update handling
+        self._file_creator(loader_files, overwrite=True)
 
     def generate_type(self, options: GenerateTypeOptions, types: list[str]):
         sample_type = types[0]
