@@ -47,9 +47,8 @@ public:
 
 protected:
     // command handler functions (virtual)
-    virtual std::string handle_get_signed_meter_value(std::string& auth_token) override;
-    virtual int handle_start_transaction(types::powermeter::TransactionParameters& transaction_parameters) override;
-    virtual int handle_stop_transaction() override;
+    virtual types::powermeter::TransactionStartResponse handle_start_transaction(types::powermeter::TransactionReq& value) override;
+    virtual types::powermeter::TransactionStopResponse handle_stop_transaction(std::string& transaction_id) override;
 
     // ev@d2d1847a-7b88-41dd-ad07-92785f06f5c4:v1
     // insert your protected definitions here
@@ -107,6 +106,7 @@ private:
     void request_error_diagnostics(uint8_t addr);
     void error_diagnostics(uint8_t addr);
     ast_app_layer::CommandResult receive_response();
+    std::string get_meter_ocmf();
 
     static constexpr auto TIMEOUT_2s{std::chrono::seconds(2)};
     // ev@3370e4dd-95f4-47a9-aaec-ea76f34a66c9:v1
