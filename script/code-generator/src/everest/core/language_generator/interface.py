@@ -4,7 +4,7 @@ from dataclasses import dataclass, field, asdict
 from pathlib import Path
 
 from everest.framework.schema import DefinitionParser
-from everest.framework.model import Module
+from everest.framework.model import Module, Interface
 from everest.framework.model.types import get_topological_sorted_type_list_from_unit
 
 from .common import resolve_everest_dir_path, get_module_manifest
@@ -31,6 +31,9 @@ class GenerateModuleOptions:
     show_diff: bool
     file_filter: list[str]
 
+@dataclass
+class GenerateInterfaceOptions:
+    show_diff: bool
 
 @dataclass
 class GenerateRuntimeOptions:
@@ -68,8 +71,15 @@ class ILanguageGenerator(ABC):
     def _generate_module_files(self, module_model: Module, module_path: Path, update_only: bool) -> FileCreationMap:
         pass
 
+    def generate_interface(self, options: GenerateInterfaceOptions, interface_name: str):
+        print(f'I shall create the interface {interface_name}')
+        interface_model, _ = self._get_interface_model(interface_name[0])
+
+        interface_files = self._generate_interface_files(interface_model)
+        self._file_creator(interface_files, show_diff=options.show_diff)
+
     @abstractmethod
-    def generate_interface(self):
+    def _generate_interface_files(self, interface_model: Interface) -> FileCreationMap:
         pass
 
     def generate_loader(self, full_qualified_module_name: str):

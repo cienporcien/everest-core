@@ -23,6 +23,7 @@ class ViewModelFactory:
         fqtn: str = None
 
         if isinstance(type, types.VariantType):
+            # FIXME (aw): variant of 'typed' types not yet possible
             type_ids = [e.ID for e in type.items]
             fqtn = [type_id_mapping[e] for e in type_ids if e != 'null'].sort()
             if 'null' in type_ids:
@@ -39,6 +40,9 @@ class ViewModelFactory:
             name=name,
             type=vm.TypeViewModel(type.ID, fqtn)
         )
+    
+    def _resolve_type_reference(self, type_reference: types.TypeReference) -> str: # FIXME (aw): should use proper type id enum instead of str
+        @
 
     def create_implementation(self, impl: model.Implementation, impl_name: str):
         interface = impl.interface

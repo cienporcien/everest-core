@@ -1,7 +1,7 @@
 {% from "helper_macros.j2" import call_cmd_signature, var_to_any, var_to_cpp, print_template_info, cpp_type, result_type, print_spdx_line, string_to_enum, enum_to_string %}
 {{ print_spdx_line('Apache-2.0') }}
-#ifndef {{ info.hpp_guard }}
-#define {{ info.hpp_guard }}
+#ifndef {{ hpp_guard }}
+#define {{ hpp_guard }}
 
 {{ print_template_info('3') }}
 
@@ -9,29 +9,29 @@
 
 #include "Types.hpp"
 
-class {{ info.class_name }} {
+class {{ class_name }} {
 public:
-    {{ info.class_name }}(Everest::ModuleAdapter* adapter, Requirement req, const std::string& module_id) : module_id(module_id), _adapter(adapter), _req(req){};
+    {{ class_name }}(Everest::ModuleAdapter* adapter, Requirement req, const std::string& module_id) : module_id(module_id), _adapter(adapter), _req(req){};
 
     const std::string module_id;
 
-    {% if not vars %}
+    {% if not interface.vars %}
     // this interface does not export any variables to subscribe to
     {% else %}
     // variables available for subscription
-    {% for var in vars %}
-    void subscribe_{{ var.name }}(const std::function<void({% if var.json_type != 'null' %}{{ cpp_type(var) }}{% endif %})>& listener) {
+    {% for var in interface.vars %}
+    void subscribe_{{ var.name }}(const std::function<void({% if var.type.id != 'null' %}{{ cpp_type(var.type) }}{% endif %})>& listener) {
         ValueCallback cb = [listener](const Value& value) {
-        {% if 'object_type' in var %}
+        {% if var.type.is_object %}
             listener(value);
-        {% elif 'enum_type' in var %}
+        {% elif var.type.is_enum %}
             auto native_value = {{ string_to_enum(var.enum_type) }}({{ var_to_cpp(var) }}(value));
             listener(native_value);
-        {% elif var.json_type != 'null' %}
+        {% elif var.type.id != 'null' %}
             listener({{ var_to_cpp(var) }}(value));
         {% else %}
             if (value.type() != Everest::detail::FundamentalTypeTrait<{{ cpp_type(var) }}>::type) {
-                EVLOG_error << "Callback for variable '{{ var.name }}' in interface '{{ info.interface }}' has wrong type!";
+                EVLOG_error << "Callback for variable '{{ var.name }}' in interface '{{ interface.name }}' has wrong type!";
             }
             listener();
         {% endif %}
@@ -44,11 +44,11 @@ public:
     {% endfor %}
     {% endif %}
 
-    {% if not cmds %}
+    {% if not interface.cmds %}
     // this interface does not export any commands to call
     {% else %}
     // commands available to call
-    {% for cmd in cmds %}
+    {% for cmd in interface.cmds %}
     {{ call_cmd_signature(cmd, info.interface_name) }} {
         Parameters args;
         {% for arg in cmd.args %}
@@ -98,4 +98,4 @@ private:
     Requirement _req;
 };
 
-#endif // {{ info.hpp_guard }}
+#endif // {{ hpp_guard }}

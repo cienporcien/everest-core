@@ -22,10 +22,22 @@ class TypeViewModel:
             'string': '"everest"',
             'variant': '{}',
             'object': '{}',
-            'reference': '{}'
+            'reference': '{}' # FIXME (aw): do we need that here?
         }
 
         return result_map[self.id]
+    
+    @property
+    def is_object(self):
+        return self.id == 'object'
+    
+    @property
+    def is_variant(self):
+        return self.id == 'variant'
+    
+    @property
+    def is_enum(self):
+        return False # FIXME (aw): placeholder
 
 
 @dataclass

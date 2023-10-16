@@ -31,10 +31,10 @@ Everest::variant_to_json({{ name }})
 {%- endmacro %}
 
 {% macro var_to_cpp(arg) -%}
-{% if arg.is_variant -%}
-Everest::json_to_variant<{{ arg.cpp_type|join(', ')}}>
+{% if arg.type.is_variant -%}
+Everest::json_to_variant<{{ arg.type.fqtn}}>
 {%- else -%}
-static_cast<{{ arg.cpp_type }}>
+static_cast<{{ arg.type.fqtn }}>
 {%- endif %}
 {%- endmacro %}
 

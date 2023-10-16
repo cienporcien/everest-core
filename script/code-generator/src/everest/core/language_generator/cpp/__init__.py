@@ -1,9 +1,9 @@
 from pathlib import Path
 
-from everest.framework.model import Module
+from everest.framework.model import Module, Interface
 
 from everest.core.language_generator.interface import ILanguageGenerator, GeneratorConfig
-from everest.core.language_generator.file_management import FileCreationInfo, FileCreationStrategy
+from everest.core.language_generator.file_management import FileCreationInfo, FileCreationStrategy, FileCreationMap
 
 
 from .renderer import Renderer, TemplateID
@@ -28,9 +28,6 @@ class CppGenerator(ILanguageGenerator):
 
         self._render = Renderer()
         self._vm_factory = ViewModelFactory()
-
-    def generate_interface(self):
-        pass
 
     def _clang_format(self, files: list[FileCreationInfo]):
         if self._disable_clang_format:
@@ -234,4 +231,36 @@ class CppGenerator(ILanguageGenerator):
 
         return {
             'loader': loader_files
+        }
+
+    def _generate_interface_files(self, interface_model: Interface) -> FileCreationMap:
+        interface_vm = self._vm_factory.create_interface(interface_model)
+
+        parent_output_dir = self._config.generated_output_directory / 'include/generated/interfaces'
+        interface_output_name = f'{interface_model.name}/Interface.hpp'
+
+        template_data = {
+            'interface': interface_vm,
+            'hpp_guard': snake_case(interface_model.name).upper() + '_INTERFACE_HPP',
+            'class_name': f'{interface_model.name}Intf',
+        }
+
+        export_file = FileCreationInfo(
+            abbreviation='interface-export',
+            printable_name=interface_output_name,
+            path=parent_output_dir / interface_output_name,
+            content=self._render(TemplateID.INTF_EXPORT_HPP, template_data),
+            last_mtime=None,
+        )
+
+        # loader_files.append(FileCreationInfo(
+        #     abbreviation='ld-ev.cpp',
+        #     printable_name=f'{module.name}/ld-ev.cpp',
+        #     content=self._render(TemplateID.LOADER_CPP, template_data),
+        #     path=out_dir / 'ld-ev.cpp',
+        #     last_mtime=last_mtime
+        # ))
+
+        return {
+            'export': [export_file]
         }

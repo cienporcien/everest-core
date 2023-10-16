@@ -4,14 +4,21 @@ from pathlib import Path
 from . import __version__
 
 from .language_generator.cpp import CppGenerator
-from .language_generator.interface import GeneratorMethod, GeneratorConfig, GenerateModuleOptions, GenerateTypeOptions, GenerateRuntimeOptions, ILanguageGenerator
+from .language_generator.interface import GeneratorMethod, GeneratorConfig, GenerateModuleOptions, GenerateTypeOptions, GenerateInterfaceOptions, ILanguageGenerator
 
 from .language_generator import SupportedLanguage
+
+def determine_output_dir(args: argparse.Namespace, working_directory: Path) -> Path:
+    default_output_dir = working_directory / 'build/generated'
+    if 'output_dir' not in args or not args.output_dir:
+        return default_output_dir
+    
+    return Path(args.output_dir)
 
 
 def create_generator_config(args: argparse.Namespace) -> GeneratorConfig:
     working_directory = Path(args.work_dir)
-    generated_output_dir = Path(args.output_dir) if 'output_dir' in args else working_directory / 'build/generated'
+    generated_output_dir = determine_output_dir(args, working_directory)
 
     return GeneratorConfig(
         working_directory=working_directory.resolve(),
@@ -57,6 +64,12 @@ def dispatch_arguments(args: argparse.Namespace):
 
     elif selected_method == GeneratorMethod.generate_loader:
         generator.generate_loader(args.module)
+
+    elif selected_method == GeneratorMethod.generate_interface:
+        options = GenerateInterfaceOptions(
+            show_diff=args.diff
+        )
+        generator.generate_interface(options, args.interfaces)
 
 
 def main():
