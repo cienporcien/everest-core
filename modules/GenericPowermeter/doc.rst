@@ -87,11 +87,3 @@ powermeter
 The basic dataset of powermeter values as used in the EVerest ``powermeter`` interface.
 This dataset will be periodically published by the module.
 
-
-Provided commands
-=================
-
-get_signed_meter_value
-----------------------
-
-`currently not implemented`
