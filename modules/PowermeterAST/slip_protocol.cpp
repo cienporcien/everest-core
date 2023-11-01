@@ -156,10 +156,10 @@ SlipReturnStatus SlipProtocol::unpack(std::vector<uint8_t>& message, uint8_t lis
 
         // from here on, we have all message parts as elements in sub_messages
         for (auto sub_message : sub_messages) {
+            restore_special_characters(sub_message);
             // check all sub-messages' CRC and only process on match
             if (is_message_crc_correct(sub_message)) {
                 // on correct CRC
-                restore_special_characters(message);
                 this->message_queue.push_back(message);
                 this->message_counter++;
                 if (retval == SlipReturnStatus::SLIP_ERROR_UNINITIALIZED) {  // only set SLIP_OK if no other error
@@ -182,9 +182,9 @@ SlipReturnStatus SlipProtocol::unpack(std::vector<uint8_t>& message, uint8_t lis
                 }
 
                 remove_start_and_stop_frame(message);
+                restore_special_characters(message);
                 if (is_message_crc_correct(message)) {
                     // message intact, check for special characters and restore to original contents
-                    restore_special_characters(message);
                     this->message_queue.push_back(message);
                     this->message_counter++;
                     retval = SlipReturnStatus::SLIP_OK;
