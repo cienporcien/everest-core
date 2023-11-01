@@ -160,7 +160,7 @@ SlipReturnStatus SlipProtocol::unpack(std::vector<uint8_t>& message, uint8_t lis
             // check all sub-messages' CRC and only process on match
             if (is_message_crc_correct(sub_message)) {
                 // on correct CRC
-                this->message_queue.push_back(message);
+                this->message_queue.push_back(sub_message);
                 this->message_counter++;
                 if (retval == SlipReturnStatus::SLIP_ERROR_UNINITIALIZED) {  // only set SLIP_OK if no other error
                     retval = SlipReturnStatus::SLIP_OK;
