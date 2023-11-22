@@ -115,69 +115,71 @@ boot_module(async ({
   // Subscribe to nodered error injection
   mqtt.subscribe(`everest_external/nodered/${config.module.connector_id}/carsim/error`, (mod, en) => {
     let e = JSON.parse(en);
+    let raise = e.raise == 'true';
+
     switch (e.error_type) {
       case "DiodeFault":
-        error_DiodeFault(mod, e.raise);
+        error_DiodeFault(mod, raise);
         break;
       case "BrownOut":
-        error_BrownOut(mod, e.raise);
+        error_BrownOut(mod, raise);
         break;
       case "EnergyManagement":
-        error_EnergyManagement(mod, e.raise);
+        error_EnergyManagement(mod, raise);
         break;
       case "PermanentFault":
-        error_PermanentFault(mod, e.raise);
+        error_PermanentFault(mod, raise);
         break;
       case "MREC2GroundFailure":
-        error_MREC2GroundFailure(mod, e.raise);
+        error_MREC2GroundFailure(mod, raise);
         break;
       case "MREC3HighTemperature":
-        error_MREC3HighTemperature(mod, e.raise);
+        error_MREC3HighTemperature(mod, raise);
         break;
       case "MREC4OverCurrentFailure":
-        error_MREC4OverCurrentFailure(mod, e.raise);
+        error_MREC4OverCurrentFailure(mod, raise);
         break;
       case "MREC5OverVoltage":
-        error_MREC5OverVoltage(mod, e.raise);
+        error_MREC5OverVoltage(mod, raise);
         break;
       case "MREC6UnderVoltage":
-        error_MREC6UnderVoltage(mod, e.raise);
+        error_MREC6UnderVoltage(mod, raise);
         break;
       case "MREC8EmergencyStop":
-        error_MREC8EmergencyStop(mod, e.raise);
+        error_MREC8EmergencyStop(mod, raise);
         break;
       case "MREC10InvalidVehicleMode":
-        error_MREC10InvalidVehicleMode(mod, e.raise);
+        error_MREC10InvalidVehicleMode(mod, raise);
         break;
       case "MREC14PilotFault":
-        error_MREC14PilotFault(mod, e.raise);
+        error_MREC14PilotFault(mod, raise);
         break;
       case "MREC15PowerLoss":
-        error_MREC15PowerLoss(mod, e.raise);
+        error_MREC15PowerLoss(mod, raise);
         break;
       case "MREC17EVSEContactorFault":
-        error_MREC17EVSEContactorFault(mod, e.raise);
+        error_MREC17EVSEContactorFault(mod, raise);
         break;
       case "MREC18CableOverTempDerate":
-        error_MREC18CableOverTempDerate(mod, e.raise);
+        error_MREC18CableOverTempDerate(mod, raise);
         break;
       case "MREC19CableOverTempStop":
-        error_MREC19CableOverTempStop(mod, e.raise);
+        error_MREC19CableOverTempStop(mod, raise);
         break;
       case "MREC20PartialInsertion":
-        error_MREC20PartialInsertion(mod, e.raise);
+        error_MREC20PartialInsertion(mod, raise);
         break;
       case "MREC23ProximityFault":
-        error_MREC23ProximityFault(mod, e.raise);
+        error_MREC23ProximityFault(mod, raise);
         break;
       case "MREC24ConnectorVoltageHigh":
-        error_MREC24ConnectorVoltageHigh(mod, e.raise);
+        error_MREC24ConnectorVoltageHigh(mod, raise);
         break;
       case "MREC25BrokenLatch":
-        error_MREC25BrokenLatch(mod, e.raise);
+        error_MREC25BrokenLatch(mod, raise);
         break;
       case "MREC26CutCable":
-        error_MREC26CutCable(mod, e.raise);
+        error_MREC26CutCable(mod, raise);
         break;
       default:
         evlog.error("Unknown error raised via MQTT");
