@@ -67,3 +67,10 @@ everest-utils:
 libevse-security:
   git: https://github.com/EVerest/libevse-security.git
   git_tag: v0.3.0
+sqlite_cpp:
+  git: https://github.com/SRombauts/SQLiteCpp.git
+  git_tag: 3.3.1
+catch2:
+  git: https://github.com/catchorg/Catch2.git
+  git_tag: v3.4.0
+  cmake_condition: "BUILD_TESTING"
