@@ -131,9 +131,6 @@ public:
 
     sigslot::signal<> signal_hlc_stop_charging;
 
-    // Request more details about the error that happend
-    types::evse_manager::ErrorEnum getErrorState();
-
     void processEvent(CPEvent event);
 
     void run();
@@ -161,8 +158,6 @@ public:
         ChargingPausedEVSE,
         StoppingCharging,
         Finished,
-        Error,
-        Faulted,
         T_step_EF,
         T_step_X1,
         Replug
@@ -178,8 +173,8 @@ public:
 
     EvseState getCurrentState();
     sigslot::signal<EvseState> signalState;
-    //sigslot::signal<types::evse_manager::ErrorEnum> signalError;
-    // /Deprecated
+    // sigslot::signal<types::evse_manager::ErrorEnum> signalError;
+    //  /Deprecated
 
     void inform_new_evse_max_hlc_limits(const types::iso15118_charger::DC_EVSEMaximumLimits& l);
     types::iso15118_charger::DC_EVSEMaximumLimits get_evse_max_hlc_limits();
@@ -190,6 +185,8 @@ public:
 
     void set_hlc_charging_active();
     void set_hlc_allow_close_contactor(bool on);
+
+    bool errors_prevent_charging();
 
 private:
     void bcb_toggle_reset();
@@ -237,10 +234,15 @@ private:
     EvseState currentState;
     EvseState last_state;
     EvseState last_state_detect_state_change;
+
     types::evse_manager::ErrorEnum errorState{types::evse_manager::ErrorEnum::Internal};
     std::chrono::system_clock::time_point currentStateStarted;
 
     bool connectorEnabled;
+
+    bool error_prevent_charging_flag{false};
+    bool last_error_prevent_charging_flag{false};
+    void graceful_stop_charging();
 
     float ampereToDutyCycle(float ampere);
 

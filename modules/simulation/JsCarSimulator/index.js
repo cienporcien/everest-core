@@ -239,6 +239,7 @@ function car_statemachine(mod) {
       break;
 
     case 'error_e':
+      mod.simdata_setting.cp_voltage = 0.0;
       drawPower(mod, 0, 0, 0, 0);
       mod.simdata.error_e = true;
       break;

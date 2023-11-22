@@ -12,6 +12,7 @@ active_modules:
       connection_timeout: 10
       prioritize_authorization_over_stopping_transaction: true
       selection_algorithm: FindFirst
+      ignore_connector_faults: true
     connections:
       evse_manager:
         - implementation_id: evse

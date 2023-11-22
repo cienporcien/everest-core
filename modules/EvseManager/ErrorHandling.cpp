@@ -49,7 +49,6 @@ void ErrorHandling::clear_overcurrent_error() {
 
     if (active_errors.all_cleared()) {
         // signal to charger that all errors are cleared now
-        EVLOG_info << "All errors are cleared.";
         signal_all_errors_cleared();
     }
 }

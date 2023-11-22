@@ -1054,7 +1054,7 @@ bool EvseManager::reserve(int32_t id) {
     }
 
     // is the evse faulted?
-    if (charger->getCurrentState() == Charger::EvseState::Faulted) {
+    if (charger->errors_prevent_charging()) {
         return false;
     }
 
@@ -1380,9 +1380,11 @@ bool EvseManager::powersupply_DC_set(double _voltage, double _current) {
 }
 
 void EvseManager::powersupply_DC_off() {
-    session_log.evse(false, "DC power supply OFF");
-    r_powersupply_DC[0]->call_setMode(types::power_supply_DC::Mode::Off);
-    powersupply_dc_is_on = false;
+    if (powersupply_dc_is_on) {
+        session_log.evse(false, "DC power supply OFF");
+        r_powersupply_DC[0]->call_setMode(types::power_supply_DC::Mode::Off);
+        powersupply_dc_is_on = false;
+    }
 }
 
 bool EvseManager::wait_powersupply_DC_voltage_reached(double target_voltage) {

@@ -244,7 +244,8 @@ void evse_managerImpl::ready() {
             se.transaction_finished.emplace(transaction_finished);
         } else if (e == types::evse_manager::SessionEventEnum::Error) {
             types::evse_manager::Error error;
-            error.error_code = mod->charger->getErrorState();
+            // FIXME this should report something useful instead!
+            error.error_code = types::evse_manager::ErrorEnum::Other;
             se.error = error;
         } else if (e == types::evse_manager::SessionEventEnum::Enabled or
                    e == types::evse_manager::SessionEventEnum::Disabled) {

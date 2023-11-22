@@ -712,32 +712,13 @@ function error_DiodeFault(mod, raise) {
   }
 }
 
-// Clear all errors that automatically reset up on disconnection of the vehicle.
+// Example of automatically reset errors up on disconnection of the vehicle.
 // All other errors need to be cleared explicitly.
 // Note that in real life the clearing of errors may differ between BSPs depending on the
 // hardware implementation.
 function clear_disconnect_errors(mod) {
-  if (active_errors.diode_fail) {
+  if (active_errors.DiodeFault) {
     error_DiodeFault(mod, false);
-  }
-
-  if (active_errors.MREC4OverCurrentFailure) {
-    error_MREC4OverCurrentFailure(mod, false);
-  }
-
-  if (active_errors.MREC8EmergencyStop) {
-    error_MREC8EmergencyStop(mod, false);
-  }
-
-
-  if (active_errors.MREC10InvalidVehicleMode) {
-    mod.provides.board_support.request_clear_all_of_type.evse_board_support_MREC10InvalidVehicleMode();
-    active_errors.MREC10InvalidVehicleMode = false;
-  }
-
-  if (active_errors.MREC20PartialInsertion) {
-    mod.provides.board_support.request_clear_all_of_type.evse_board_support_MREC20PartialInsertion();
-    active_errors.MREC20PartialInsertion = false;
   }
 }
 
