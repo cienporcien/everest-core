@@ -1036,7 +1036,7 @@ powermeterImpl::handle_start_transaction(types::powermeter::TransactionReq& valu
     while (this->start_transaction_msg_status != MessageStatus::RECEIVED) {
         receive_response();
         if(timeout.reached()) {
-            this->stop_transact_result = ast_app_layer::CommandResult::TIMEOUT;
+            this->start_transact_result = ast_app_layer::CommandResult::TIMEOUT;
             break;
         }
     }
