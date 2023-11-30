@@ -989,10 +989,16 @@ void OCPP201::ready() {
         if (evse.operational_state == ocpp::v201::OperationalStatusEnum::Inoperative or
             this->cs_operational_status == ocpp::v201::OperationalStatusEnum::Inoperative) {
             this->r_evse_manager.at(evse_id - 1)->call_disable(0);
+            // Preemptively set Unavailable on all connectors so that the chargepoint starts in the correct state
+            for (int32_t connector_id = 1; connector_id <= this->evses.at(evse_id).connectors.size(); connector_id++) {
+                this->charge_point->on_unavailable(evse_id, connector_id);
+            };
         }
         for (const auto [connector_id, operational_state] : evse.connectors) {
             if (operational_state == ocpp::v201::OperationalStatusEnum::Inoperative) {
                 this->r_evse_manager.at(evse_id - 1)->call_disable(connector_id);
+                // Preemptively set the Unavailable status so that the chargepoint starts in the correct state
+                this->charge_point->on_unavailable(evse_id, connector_id);
             }
         }
     }
