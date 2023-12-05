@@ -983,6 +983,8 @@ void OCPP201::ready() {
     while (!this->all_evse_ready()) {
         this->evse_ready_cv.wait(lk);
     }
+    // In case (for some reason) EvseManager ready signals are sent after this point, this will prevent a hang
+    lk.unlock();
 
     // align state machine based on operational status
     for (const auto& [evse_id, evse] : this->evses) {
