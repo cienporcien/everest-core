@@ -909,27 +909,34 @@ void OCPP201::ready() {
                 break;
             }
             case types::evse_manager::SessionEventEnum::Disabled: {
+                // TODO(Valentin): Shadow this in the OCPP201 state
                 if (session_event.connector_id.has_value()) {
-                    this->charge_point->on_unavailable(evse_id, connector_id);
+                    // A single connector was disabled
+                    this->charge_point->set_operative_status(evse_id,
+                                                             connector_id,
+                                                             ocpp::v201::OperationalStatusEnum::Inoperative,
+                                                             false);
                 } else {
-                    for (size_t index = 1; index <= this->evses.at(evse_id).connectors.size(); index++) {
-                        this->charge_point->on_unavailable(evse_id, index);
-                    }
+                    // A whole EVSE was disabled
+                    this->charge_point->set_operative_status(evse_id, {},
+                                                             ocpp::v201::OperationalStatusEnum::Inoperative,
+                                                             false);
                 }
                 break;
             }
             case types::evse_manager::SessionEventEnum::Enabled: {
+                // TODO(Valentin): Shadow this in the OCPP201 state
                 if (session_event.connector_id.has_value()) {
-                    if (this->evses.at(evse_id).operational_state == ocpp::v201::OperationalStatusEnum::Operative) {
-                        this->charge_point->on_operative(evse_id, connector_id);
-                    }
+                    // A single connector was enabled
+                    this->charge_point->set_operative_status(evse_id,
+                                                             connector_id,
+                                                             ocpp::v201::OperationalStatusEnum::Operative,
+                                                             false);
                 } else {
-                    for (size_t index = 1; index <= this->evses.at(evse_id).connectors.size(); index++) {
-                        if (this->evses.at(evse_id).connectors.at(index) ==
-                            ocpp::v201::OperationalStatusEnum::Operative) {
-                            this->charge_point->on_operative(evse_id, index);
-                        }
-                    }
+                    // A whole EVSE was enabled
+                    this->charge_point->set_operative_status(evse_id, {},
+                                                             ocpp::v201::OperationalStatusEnum::Operative,
+                                                             false);
                 }
                 break;
             }
@@ -977,21 +984,25 @@ void OCPP201::ready() {
     // In case (for some reason) EvseManager ready signals are sent after this point, this will prevent a hang
     lk.unlock();
 
-    // align state machine based on operational status
+    // Align operational status of CS, EVSEs and connectors based on persisted information
+    if (this->cs_operational_status == ocpp::v201::OperationalStatusEnum::Inoperative) {
+        this->charge_point->set_operative_status({}, {},
+                                                 ocpp::v201::OperationalStatusEnum::Inoperative,
+                                                 false);
+    }
     for (const auto& [evse_id, evse] : this->evses) {
-        if (evse.operational_state == ocpp::v201::OperationalStatusEnum::Inoperative or
-            this->cs_operational_status == ocpp::v201::OperationalStatusEnum::Inoperative) {
-            this->r_evse_manager.at(evse_id - 1)->call_disable(0);
-            // Preemptively set Unavailable on all connectors so that the chargepoint starts in the correct state
-            for (int32_t connector_id = 1; connector_id <= this->evses.at(evse_id).connectors.size(); connector_id++) {
-                this->charge_point->on_unavailable(evse_id, connector_id);
-            };
+        if (evse.operational_state == ocpp::v201::OperationalStatusEnum::Inoperative) {
+            this->charge_point->set_operative_status(evse_id, {},
+                                                     ocpp::v201::OperationalStatusEnum::Inoperative,
+                                                     false);
         }
         for (const auto [connector_id, operational_state] : evse.connectors) {
             if (operational_state == ocpp::v201::OperationalStatusEnum::Inoperative) {
-                this->r_evse_manager.at(evse_id - 1)->call_disable(connector_id);
-                // Preemptively set the Unavailable status so that the chargepoint starts in the correct state
-                this->charge_point->on_unavailable(evse_id, connector_id);
+                this->charge_point->set_operative_status(
+                    evse_id,
+                    connector_id,
+                    ocpp::v201::OperationalStatusEnum::Inoperative,
+                    false);
             }
         }
     }
