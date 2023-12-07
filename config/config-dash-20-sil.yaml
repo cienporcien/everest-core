@@ -1,6 +1,8 @@
 active_modules:
   iso15118_charger:
     module: D20Evse
+    config_module:
+      device: eno1    
     # config_module:
     #   private_key_password: "failed"
     #   enable_ssl_logging: true
@@ -8,7 +10,7 @@ active_modules:
   iso15118_car:
     module: PyEvJosev
     config_module:
-      device: auto
+      device: eno1
       supported_DIN70121: true
       supported_ISO15118_2: true
       supported_ISO15118_20_DC: true
