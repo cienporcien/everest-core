@@ -643,10 +643,12 @@ void OCPP201::ready() {
             if (connector_id.has_value()) {
                 // An individual connector is addressed
                 if (new_status == ocpp::v201::OperationalStatusEnum::Operative) {
-                    auto connector_id_str = std::to_string(evse_id.value()) + "." + std::to_string(connector_id.value());
+                    auto connector_id_str =
+                        std::to_string(evse_id.value()) + "." + std::to_string(connector_id.value());
                     this->r_kvs->call_delete(KVS_OCPP201_INOPERATIVE_KEY_PREFIX + connector_id_str);
                 } else {
-                    auto connector_id_str = std::to_string(evse_id.value()) + "." + std::to_string(connector_id.value());
+                    auto connector_id_str =
+                        std::to_string(evse_id.value()) + "." + std::to_string(connector_id.value());
                     this->r_kvs->call_store(KVS_OCPP201_INOPERATIVE_KEY_PREFIX + connector_id_str, true);
                 }
             } else {
@@ -912,15 +914,12 @@ void OCPP201::ready() {
                 // TODO(Valentin): Shadow this in the OCPP201 state
                 if (session_event.connector_id.has_value()) {
                     // A single connector was disabled
-                    this->charge_point->set_operative_status(evse_id,
-                                                             connector_id,
-                                                             ocpp::v201::OperationalStatusEnum::Inoperative,
-                                                             false);
+                    this->charge_point->set_operative_status(evse_id, connector_id,
+                                                             ocpp::v201::OperationalStatusEnum::Inoperative, false);
                 } else {
                     // A whole EVSE was disabled
                     this->charge_point->set_operative_status(evse_id, {},
-                                                             ocpp::v201::OperationalStatusEnum::Inoperative,
-                                                             false);
+                                                             ocpp::v201::OperationalStatusEnum::Inoperative, false);
                 }
                 break;
             }
@@ -928,14 +927,11 @@ void OCPP201::ready() {
                 // TODO(Valentin): Shadow this in the OCPP201 state
                 if (session_event.connector_id.has_value()) {
                     // A single connector was enabled
-                    this->charge_point->set_operative_status(evse_id,
-                                                             connector_id,
-                                                             ocpp::v201::OperationalStatusEnum::Operative,
-                                                             false);
+                    this->charge_point->set_operative_status(evse_id, connector_id,
+                                                             ocpp::v201::OperationalStatusEnum::Operative, false);
                 } else {
                     // A whole EVSE was enabled
-                    this->charge_point->set_operative_status(evse_id, {},
-                                                             ocpp::v201::OperationalStatusEnum::Operative,
+                    this->charge_point->set_operative_status(evse_id, {}, ocpp::v201::OperationalStatusEnum::Operative,
                                                              false);
                 }
                 break;
@@ -986,23 +982,17 @@ void OCPP201::ready() {
 
     // Align operational status of CS, EVSEs and connectors based on persisted information
     if (this->cs_operational_status == ocpp::v201::OperationalStatusEnum::Inoperative) {
-        this->charge_point->set_operative_status({}, {},
-                                                 ocpp::v201::OperationalStatusEnum::Inoperative,
-                                                 false);
+        this->charge_point->set_operative_status({}, {}, ocpp::v201::OperationalStatusEnum::Inoperative, false);
     }
     for (const auto& [evse_id, evse] : this->evses) {
         if (evse.operational_state == ocpp::v201::OperationalStatusEnum::Inoperative) {
-            this->charge_point->set_operative_status(evse_id, {},
-                                                     ocpp::v201::OperationalStatusEnum::Inoperative,
+            this->charge_point->set_operative_status(evse_id, {}, ocpp::v201::OperationalStatusEnum::Inoperative,
                                                      false);
         }
         for (const auto [connector_id, operational_state] : evse.connectors) {
             if (operational_state == ocpp::v201::OperationalStatusEnum::Inoperative) {
-                this->charge_point->set_operative_status(
-                    evse_id,
-                    connector_id,
-                    ocpp::v201::OperationalStatusEnum::Inoperative,
-                    false);
+                this->charge_point->set_operative_status(evse_id, connector_id,
+                                                         ocpp::v201::OperationalStatusEnum::Inoperative, false);
             }
         }
     }
