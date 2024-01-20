@@ -12,14 +12,9 @@
 
 #include <date/date.h>
 
-#include <iso15118/session_d2_sap/logger.hpp>
-#include <iso15118/session_d2/logger.hpp>
 #include <iso15118/session/logger.hpp>
 
-using LogEvent_2_sap = iso15118::session_2_sap::logging::Event;
-using LogEvent_2 = iso15118::session_2::logging::Event;
-using LogEvent_20 = iso15118::session::logging::Event;
-
+using LogEvent = iso15118::session::logging::Event;
 
 std::string get_filename_for_current_time() {
     const auto now = std::chrono::system_clock::now();
@@ -33,13 +28,13 @@ std::string get_filename_for_current_time() {
     return buffer;
 }
 
-// static auto timepoint_to_string(const iso15118::session_2::logging::TimePoint& timepoint) {
+// static auto timepoint_to_string(const iso15118::session::logging::TimePoint& timepoint) {
 //     using namespace date;
 //     return static_cast<std::string>(timepoint);
 // }
 
-std::ostream& operator<<(std::ostream& os, const iso15118::session_2_sap::logging::ExiMessageDirection& direction) {
-    using Direction = iso15118::session_2_sap::logging::ExiMessageDirection;
+std::ostream& operator<<(std::ostream& os, const iso15118::session::logging::ExiMessageDirection& direction) {
+    using Direction = iso15118::session::logging::ExiMessageDirection;
     switch (direction) {
     case Direction::FROM_EV:
         return os << "FROM_EV";
@@ -59,13 +54,13 @@ public:
 
         printf("Created logfile at: %s\n", file_name.c_str());
     }
-    void operator()(const iso15118::session_2_sap::logging::SimpleEvent& event) {
+    void operator()(const iso15118::session::logging::SimpleEvent& event) {
         file << "- type: INFO\n";
         add_timestamp(event.time_point);
         file << "  info: \"" << event.info << "\"\n";
     }
 
-    void operator()(const iso15118::session_2_sap::logging::ExiMessageEvent& event) {
+    void operator()(const iso15118::session::logging::ExiMessageEvent& event) {
         file << "- type: EXI\n";
         add_timestamp(event.time_point);
         file << "  direction: " << event.direction << "\n";
@@ -80,7 +75,7 @@ public:
 private:
     std::fstream file;
 
-    void add_timestamp(const iso15118::session_2_sap::logging::TimePoint& timestamp) {
+    void add_timestamp(const iso15118::session::logging::TimePoint& timestamp) {
         if (not timestamp_initialized) {
             last_timestamp = timestamp;
             timestamp_initialized = true;
@@ -117,7 +112,7 @@ private:
         file << "\"\n";
     }
 
-    iso15118::session_2_sap::logging::TimePoint last_timestamp;
+    iso15118::session::logging::TimePoint last_timestamp;
     bool timestamp_initialized {false};
 };
 
@@ -127,7 +122,7 @@ SessionLogger::SessionLogger(std::filesystem::path output_dir_) : output_dir(std
         std::filesystem::create_directory(output_dir);
     }
 
-    iso15118::session_2_sap::logging::set_session_log_callback([this](std::uintptr_t id, const LogEvent_2_sap& event) {
+    iso15118::session::logging::set_session_log_callback([this](std::uintptr_t id, const LogEvent& event) {
         auto log_it = logs.find(id);
         if (log_it == logs.end()) {
             const auto log_file_name = output_dir / get_filename_for_current_time();
@@ -141,39 +136,6 @@ SessionLogger::SessionLogger(std::filesystem::path output_dir_) : output_dir(std
         std::visit(log, event);
         log.flush();
     });
-
-    iso15118::session_2::logging::set_session_log_callback([this](std::uintptr_t id, const LogEvent_2& event) {
-        auto log_it = logs.find(id);
-        if (log_it == logs.end()) {
-            const auto log_file_name = output_dir / get_filename_for_current_time();
-            const auto emplaced = logs.emplace(id, std::make_unique<SessionLog>(log_file_name.string()));
-
-            log_it = emplaced.first;
-        }
-
-        auto& log = *log_it->second;
-
-        //std::visit(log, event);
-        log.flush();
-    });
-
-    iso15118::session::logging::set_session_log_callback([this](std::uintptr_t id, const LogEvent_20& event) {
-        auto log_it = logs.find(id);
-        if (log_it == logs.end()) {
-            const auto log_file_name = output_dir / get_filename_for_current_time();
-            const auto emplaced = logs.emplace(id, std::make_unique<SessionLog>(log_file_name.string()));
-
-            log_it = emplaced.first;
-        }
-
-        auto& log = *log_it->second;
-
-        //std::visit(log, event);
-        log.flush();
-    });
-
-
-    
 }
 
 SessionLogger::~SessionLogger() = default;
