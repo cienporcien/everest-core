@@ -31,6 +31,8 @@ ev_add_module(DummyTokenValidator)
 ev_add_module(DummyTokenProvider)
 ev_add_module(DummyTokenProviderManual)
 
+ev_add_module(CbexiEV)
+
 add_subdirectory(Iso15118)
 
 add_subdirectory(deprecated)
@@ -40,3 +42,5 @@ add_subdirectory(simulation)
 if(${EVEREST_ENABLE_RS_SUPPORT})
     add_subdirectory(rust_examples)
 endif()
+
+
