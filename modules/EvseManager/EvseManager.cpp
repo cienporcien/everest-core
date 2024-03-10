@@ -1184,7 +1184,7 @@ void EvseManager::cable_check() {
         // Allow closing from HLC perspective, it will wait for CP state C in Charger IEC state machine as well.
         session_log.car(true, "DC HLC Close contactor (in CableCheck)");
         charger->set_hlc_allow_close_contactor(true);
-
+        contactor_open=false;
         Timeout timeout(CABLECHECK_CONTACTORS_CLOSE_TIMEOUT);
 
         while (!timeout.reached()) {

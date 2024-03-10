@@ -35,9 +35,14 @@ libfsm:
 
 # D20Evse module
 libiso15118:
-  git: https://github.com/EVerest/libiso15118.git
-  git_tag: 7d859ad
+  git: git@github.com:cienporcien/libiso15118.git
+  git_tag: 26700ba
   # options: ['ISO15118_LINK_CUSTOM_MBEDTLS OFF']
+
+# EVIso15118 module RDB
+evlibiso15118:
+  git: git@github.com:cienporcien/evlibiso15118.git
+  git_tag: 6ab7272
 
 # LEM DCBM 400/600 module
 libcurl:

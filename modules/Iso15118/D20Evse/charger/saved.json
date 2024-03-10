@@ -1,0 +1,83 @@
+{
+    "V2G_Message": {
+        "Header": {
+            "SessionID": "675CCA3441A418D2"
+        },
+        "Body": {
+            "CurrentDemandReq": {
+                "DC_EVStatus": {
+                    "EVReady": true,
+                    "EVErrorCode": "NO_ERROR",
+                    "EVRESSSOC": 60
+                },
+                "EVTargetCurrent": {
+                    "Value": 20,
+                    "Multiplier": 0,
+                    "Unit": "A"
+                },
+                "EVMaximumCurrentLimit": {
+                    "Value": 300,
+                    "Multiplier": 0,
+                    "Unit": "A"
+                },
+                "EVMaximumPowerLimit": {
+                    "Value": 15000,
+                    "Multiplier": 1,
+                    "Unit": "W"
+                },
+                "BulkChargingComplete": false,
+                "ChargingComplete": false,
+                "RemainingTimeToFullSoC": {
+                    "Value": 100,
+                    "Multiplier": 0,
+                    "Unit": "s"
+                },
+                "RemainingTimeToBulkSoC": {
+                    "Value": 80,
+                    "Multiplier": 0,
+                    "Unit": "s"
+                },
+                "EVTargetVoltage": {
+                    "Value": 400,
+                    "Multiplier": 0,
+                    "Unit": "V"
+                }
+            }
+        }
+    }
+}
+
+{
+    {
+        "V2G_Message": {
+            "Header": {
+                "SessionID": "1976F617357096DB"
+            },
+            "Body": {
+                "CurrentDemandRes": {
+                    "ResponseCode": "OK",
+                    "DC_EVSEStatus": {
+                        "NotificationMaxDelay": 0,
+                        "EVSENotification": "None",
+                        "EVSEIsolationStatus": "Valid",
+                        "EVSEStatusCode": "EVSE_Ready"
+                    },
+                    "EVSEPresentVoltage": {
+                        "Multiplier": -1,
+                        "Unit": "V",
+                        "Value": 4000
+                    },
+                    "EVSEPresentCurrent": {
+                        "Multiplier": -3,
+                        "Unit": "A",
+                        "Value": 20000
+                    },
+                    "EVSECurrentLimitAchieved": true,
+                    "EVSEVoltageLimitAchieved": true,
+                    "EVSEPowerLimitAchieved": true,
+                    "EVSEID": "",
+                    "SAScheduleTupleID": 256
+                }
+            }
+        }
+    }
