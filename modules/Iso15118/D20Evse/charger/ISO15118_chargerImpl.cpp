@@ -117,6 +117,28 @@ void ISO15118_chargerImpl::init() {
     };
 
     controller = std::make_unique<iso15118::TbdController>(tbd_config, callbacks);
+
+    // RDB subscribe to the position info from the PPD
+
+    mod->r_requirement_PPD->subscribe_PositionMeasurement(
+        [this](types::pairing_and_positioning::Position uwb_position) {
+            // Received UWB position values. Check if the UWB of the vehicle is within the Communications Pairing Space
+            // (CPS) in Config. If so, Send the result over to the TbdController. Note that if the position is -100.0
+            // cm, then the PPD is not receiving any signal from vehicle UWB. This can be treated the same as not within
+            // the CPS. Also, ignore any readings with negative distance.
+            if (uwb_position.position_X >= mod->config.communications_pairing_space_xmin &&
+                uwb_position.position_X <= mod->config.communications_pairing_space_xmax &&
+                uwb_position.position_Y >= mod->config.communications_pairing_space_ymin &&
+                uwb_position.position_Y <= mod->config.communications_pairing_space_ymax &&
+                uwb_position.position_Z >= 0.0)
+                {
+                controller->Is_PPD_in_CPS = true;
+            } else {
+                controller->Is_PPD_in_CPS = false;
+            }
+
+            // controller->send_control_event(iso15118::d20::AuthorizationResponse{authorized});
+        });
 }
 
 void ISO15118_chargerImpl::ready() {
@@ -125,7 +147,7 @@ void ISO15118_chargerImpl::ready() {
         try {
             controller->loop();
         } catch (const std::exception& e) {
-            EVLOG_error << "D20Evse chrashed: " << e.what();
+            EVLOG_error << "D20Evse crashed: " << e.what();
             publish_dlink_error(nullptr);
         }
 
@@ -151,7 +173,18 @@ void ISO15118_chargerImpl::handle_setup(
 
 void ISO15118_chargerImpl::handle_session_setup(std::vector<types::iso15118_charger::PaymentOption>& payment_options,
                                                 bool& supported_certificate_service) {
-    // your code for cmd session_setup goes here
+
+    std::vector<iso15118::message_20::Authorization> auth_services;
+
+    for (auto& option : payment_options) {
+        if (option == types::iso15118_charger::PaymentOption::ExternalPayment) {
+            auth_services.push_back(iso15118::message_20::Authorization::EIM);
+        } else if (option == types::iso15118_charger::PaymentOption::Contract) {
+            auth_services.push_back(iso15118::message_20::Authorization::PnC);
+        }
+    }
+
+    controller->setup_session(auth_services, supported_certificate_service);
 }
 
 void ISO15118_chargerImpl::handle_certificate_response(
@@ -190,7 +223,7 @@ void ISO15118_chargerImpl::handle_receipt_is_required(bool& receipt_required) {
 }
 
 void ISO15118_chargerImpl::handle_stop_charging(bool& stop) {
-    // your code for cmd stop_charging goes here
+    controller->send_control_event(iso15118::d20::StopCharging{stop});
 }
 
 void ISO15118_chargerImpl::handle_update_ac_max_current(double& max_current) {
@@ -215,10 +248,8 @@ void ISO15118_chargerImpl::handle_update_dc_present_values(
     types::iso15118_charger::DC_EVSEPresentVoltage_Current& present_voltage_current) {
 
     float voltage = present_voltage_current.EVSEPresentVoltage;
-    float current = 0;
-    if (present_voltage_current.EVSEPresentCurrent.has_value()) {
-        current = present_voltage_current.EVSEPresentCurrent.value();
-    }
+    float current = present_voltage_current.EVSEPresentCurrent.value_or(0);
+
     controller->send_control_event(iso15118::d20::PresentVoltageCurrent{voltage, current});
 }
 

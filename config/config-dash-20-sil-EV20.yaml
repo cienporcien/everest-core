@@ -1,10 +1,16 @@
 active_modules:
+  PPD:
+    module: UWBPPD
   iso15118_charger:
     module: D20Evse
     config_module:
       device: eno1
       private_key_password: "123456"
-      enable_ssl_logging: true    
+      enable_ssl_logging: true
+    connections:
+      PPD:
+        - module_id: PPD
+          implementation_id: main
     # config_module:
     #   private_key_password: "failed"
     #   enable_ssl_logging: true

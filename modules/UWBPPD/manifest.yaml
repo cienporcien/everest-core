@@ -1,0 +1,19 @@
+description: A UWB based ISO 15118-20 ACDP Pairing and Positioning Device (PPD) based on the Murata SR150 and SR040 evaluation boards
+provides:
+  main:
+    interface: pairing_and_positioning
+    description: Implements a UWB based PPD based on the Murata SR150 and SR040 evaluation boards
+    config:
+      baud_rate:
+        description: serial port baud rate
+        type: number
+        default: 3000000
+      serial_port:
+        description: serial port name
+        type: string
+        default: "/dev/ttyUSB0"
+enable_external_mqtt: true
+metadata:
+  license: https://opensource.org/licenses/Apache-2.0
+  authors:
+    - Roger Bedell
