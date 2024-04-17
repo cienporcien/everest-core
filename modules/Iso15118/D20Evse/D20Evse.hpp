@@ -33,23 +33,26 @@ struct Conf {
     double communications_pairing_space_xmax;
     double communications_pairing_space_ymin;
     double communications_pairing_space_ymax;
+    double acdp_contact_window_xc;
+    double acdp_contact_window_yc;
+    bool acdp_evse_positioning_support;
 };
 
 class D20Evse : public Everest::ModuleBase {
 public:
     D20Evse() = delete;
     D20Evse(const ModuleInfo& info, Everest::MqttProvider& mqtt_provider,
-            std::unique_ptr<ISO15118_chargerImplBase> p_charger,
-            std::unique_ptr<pairing_and_positioningIntf> r_requirement_PPD, Conf& config) :
+            std::unique_ptr<ISO15118_chargerImplBase> p_charger, std::unique_ptr<pairing_and_positioningIntf> r_PPD,
+            Conf& config) :
         ModuleBase(info),
         mqtt(mqtt_provider),
         p_charger(std::move(p_charger)),
-        r_requirement_PPD(std::move(r_requirement_PPD)),
+        r_PPD(std::move(r_PPD)),
         config(config){};
 
     Everest::MqttProvider& mqtt;
     const std::unique_ptr<ISO15118_chargerImplBase> p_charger;
-    const std::unique_ptr<pairing_and_positioningIntf> r_requirement_PPD;
+    const std::unique_ptr<pairing_and_positioningIntf> r_PPD;
     const Conf& config;
 
     // ev@1fce4c5e-0ab8-41bb-90f7-14277703d2ac:v1

@@ -47,6 +47,18 @@ config:
     description: The ymax in cm of the 2d rectangle that describes the area where the UWB is considered to be sufficiently in position to start communicating with this EVSE
     type: number
     default: 150.0
+  acdp_contact_window_xc:
+    description: The length of the contact window in the driving direction of the ACDP in cm
+    type: number
+    default: 30.0
+  acdp_contact_window_yc:
+    description: The width of the contact window perpendicular to the driving direction of the ACDP in cm
+    type: number
+    default: 30.0
+  acdp_evse_positioning_support:
+    description: Whether the infrastructure supplies positioning support
+    type: boolean
+    default: true
 provides:
   charger:
     interface: ISO15118_charger

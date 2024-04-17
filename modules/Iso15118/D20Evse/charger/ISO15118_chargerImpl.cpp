@@ -120,7 +120,7 @@ void ISO15118_chargerImpl::init() {
 
     // RDB subscribe to the position info from the PPD
 
-    mod->r_requirement_PPD->subscribe_PositionMeasurement(
+    mod->r_PPD->subscribe_PositionMeasurement(
         [this](types::pairing_and_positioning::Position uwb_position) {
             // Received UWB position values. Check if the UWB of the vehicle is within the Communications Pairing Space
             // (CPS) in Config. If so, Send the result over to the TbdController. Note that if the position is -100.0
@@ -137,7 +137,25 @@ void ISO15118_chargerImpl::init() {
                 controller->Is_PPD_in_CPS = false;
             }
 
-            // controller->send_control_event(iso15118::d20::AuthorizationResponse{authorized});
+            // Calculate if the ev is in position
+            bool ev_in_charge_position = false;
+
+            if (uwb_position.position_X >= -mod->config.acdp_contact_window_xc &&
+                uwb_position.position_X <= mod->config.acdp_contact_window_xc &&
+                uwb_position.position_Y >= -mod->config.acdp_contact_window_yc &&
+                uwb_position.position_Y <= mod->config.acdp_contact_window_yc && uwb_position.position_Z >= 0.0) {
+                ev_in_charge_position = true;
+            }
+
+            // Also send a control event so that the vehicle positioning state handler gets it as well.
+            // but only if the position info is good, though we probably need to send a control event if the PPD
+            // signal is lost.
+            if (uwb_position.position_Z >= 0.0) {
+                controller->send_control_event(iso15118::d20::PresentVehiclePosition{
+                    mod->config.acdp_evse_positioning_support, (short)uwb_position.position_X,
+                    (short)uwb_position.position_Y, (short)mod->config.acdp_contact_window_xc,
+                    (short)mod->config.acdp_contact_window_yc, ev_in_charge_position});
+            }
         });
 }
 
