@@ -8,9 +8,6 @@
 		},
 		{
 			"path": "../libiso15118"
-		},
-		{
-			"path": "modules/CbexiEV"
 		}
 	],
 	"settings": {
@@ -95,7 +92,8 @@
 			"typeinfo": "cpp",
 			"valarray": "cpp",
 			"variant": "cpp",
-			"version": "cpp"
+			"version": "cpp",
+			"iso20_acds_datatypes.h": "c"
 		}
 	}
 }
