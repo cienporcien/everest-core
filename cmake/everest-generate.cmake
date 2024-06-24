@@ -110,6 +110,19 @@ function(ev_add_project)
             add_subdirectory(${MODULES_DIR})
         endif()
     endif ()
+
+    get_property(EVEREST_MODULES
+        GLOBAL
+        PROPERTY EVEREST_MODULES
+    )
+    message(STATUS "${EVEREST_PROJECT_NAME} modules that will be built: ${EVEREST_MODULES}")
+
+    # generate and install version information
+    evc_generate_version_information()
+    install(
+        FILES ${CMAKE_CURRENT_BINARY_DIR}/generated/version_information.txt
+        DESTINATION "${CMAKE_INSTALL_DATADIR}/everest"
+    )
 endfunction()
 
 #
@@ -128,6 +141,12 @@ if (EVEREST_ENABLE_RS_SUPPORT)
         message(STATUS "Creating rust workspace at ${RUST_WORKSPACE_DIR}")
     endif ()
 
+    if (EVEREST_CORE_BUILD_TESTING)
+        set(EVERESTRS_FEATURE_FLAGS ",features = [\"link_gcov\"]")
+    else()
+        set(EVERESTRS_FEATURE_FLAGS "")
+    endif()
+
     # NOTE (aw): we could also write a small python script, which would do that for us
     add_custom_command(OUTPUT ${RUST_WORKSPACE_CARGO_FILE}
         COMMAND
@@ -143,7 +162,9 @@ if (EVEREST_ENABLE_RS_SUPPORT)
         COMMAND
             echo "[workspace.dependencies]" >> Cargo.toml
         COMMAND
-            echo "everestrs = { path = \"$<TARGET_PROPERTY:everest::everestrs_sys,EVERESTRS_DIR>\" }" >> Cargo.toml
+            echo "everestrs = { path = \"$<TARGET_PROPERTY:everest::everestrs_sys,EVERESTRS_DIR>\" ${EVERESTRS_FEATURE_FLAGS} }" >> Cargo.toml
+        COMMAND
+            echo "everestrs-build = { path = \"$<TARGET_PROPERTY:everest::everestrs_sys,EVERESTRS_BUILD_DIR>\" }" >> Cargo.toml
         COMMAND
             echo $<TARGET_FILE:everest::framework> > .everestrs_link_dependencies
         COMMAND
@@ -166,6 +187,7 @@ if (EVEREST_ENABLE_RS_SUPPORT)
             "Build rust modules"
         COMMAND
             ${CMAKE_COMMAND} -E env
+            EVEREST_CORE_ROOT="${CMAKE_CURRENT_SOURCE_DIR}"
             EVEREST_RS_FRAMEWORK_SOURCE_LOCATION="${everest-framework_SOURCE_DIR}"
             EVEREST_RS_FRAMEWORK_BINARY_LOCATION="${everest-framework_BINARY_DIR}"
             ${CARGO_EXECUTABLE} build
@@ -262,6 +284,7 @@ function (_ev_add_interfaces)
             "${CHECK_DONE_FILE}"
         DEPENDS
             ${ARGV}
+            ev-cli
         COMMENT
             "Generating/updating interface files ..."
         VERBATIM
@@ -300,6 +323,7 @@ function (_ev_add_types)
             "${CHECK_DONE_FILE}"
         DEPENDS
             ${ARGV}
+            ev-cli
         COMMENT
             "Generating/updating type files ..."
         VERBATIM
@@ -407,6 +431,11 @@ function (ev_add_cpp_module MODULE_NAME)
 
     set(MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/${MODULE_NAME}")
 
+    get_property(EVEREST_MODULES
+        GLOBAL
+        PROPERTY EVEREST_MODULES
+    )
+
     # TODO(hikinggrass): This code is duplicated in ev_add_*_module and should be refactored.
     if(IS_DIRECTORY ${MODULE_PATH})
         if(${EVEREST_EXCLUDE_CPP_MODULES})
@@ -438,6 +467,7 @@ function (ev_add_cpp_module MODULE_NAME)
                         ${RELATIVE_MODULE_DIR}
                 DEPENDS
                     ${MODULE_PATH}/manifest.yaml
+                    ev-cli
                 WORKING_DIRECTORY
                     ${PROJECT_SOURCE_DIR}
                 COMMENT
@@ -473,6 +503,7 @@ function (ev_add_cpp_module MODULE_NAME)
             target_link_libraries(${MODULE_NAME}
                 PRIVATE
                     everest::framework
+                    ${ATOMIC_LIBS}
             )
 
             add_dependencies(${MODULE_NAME} generate_cpp_files)
@@ -485,7 +516,7 @@ function (ev_add_cpp_module MODULE_NAME)
                 DESTINATION "${EVEREST_MODULE_INSTALL_PREFIX}/${MODULE_NAME}"
             )
 
-            list(APPEND MODULES ${MODULE_NAME})
+            list(APPEND EVEREST_MODULES ${MODULE_NAME})
             add_subdirectory(${MODULE_PATH})
         endif()
     else()
@@ -493,7 +524,9 @@ function (ev_add_cpp_module MODULE_NAME)
         return()
     endif()
 
-    # FIXME (aw): this will override EVEREST_MODULES, might not what we want
+    # this will override EVEREST_MODULES, but that is ok because we appended the list earlier
+    # rename EVEREST_MODULES to EVEREST_MODULES
+    # use set_property APPEND
     set_property(
         GLOBAL
         PROPERTY EVEREST_MODULES ${EVEREST_MODULES}
@@ -504,6 +537,11 @@ function (ev_add_js_module MODULE_NAME)
     set(EVEREST_MODULE_INSTALL_PREFIX "${CMAKE_INSTALL_LIBEXECDIR}/everest/modules")
 
     set(MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/${MODULE_NAME}")
+
+    get_property(EVEREST_MODULES
+        GLOBAL
+        PROPERTY EVEREST_MODULES
+    )
 
     if(IS_DIRECTORY ${MODULE_PATH})
         if(NOT ${EVEREST_ENABLE_JS_SUPPORT})
@@ -575,7 +613,7 @@ function (ev_add_js_module MODULE_NAME)
                     PATTERN "CMakeFiles" EXCLUDE)
             endif()
 
-            list(APPEND MODULES ${MODULE_NAME})
+            list(APPEND EVEREST_MODULES ${MODULE_NAME})
             add_subdirectory(${MODULE_PATH})
         endif()
     else()
@@ -583,7 +621,7 @@ function (ev_add_js_module MODULE_NAME)
         return()
     endif()
 
-    # FIXME (aw): this will override EVEREST_MODULES, might not what we want
+    # this will override EVEREST_MODULES, but that is ok because we appended the list earlier
     set_property(
         GLOBAL
         PROPERTY EVEREST_MODULES ${EVEREST_MODULES}
@@ -594,6 +632,11 @@ function (ev_add_py_module MODULE_NAME)
     set(EVEREST_MODULE_INSTALL_PREFIX "${CMAKE_INSTALL_LIBEXECDIR}/everest/modules")
 
     set(MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/${MODULE_NAME}")
+
+    get_property(EVEREST_MODULES
+        GLOBAL
+        PROPERTY EVEREST_MODULES
+    )
 
     if(IS_DIRECTORY ${MODULE_PATH})
         if(NOT ${EVEREST_ENABLE_PY_SUPPORT})
@@ -619,7 +662,7 @@ function (ev_add_py_module MODULE_NAME)
                 PATTERN "CMakeLists.txt" EXCLUDE
                 PATTERN "CMakeFiles" EXCLUDE)
 
-            list(APPEND MODULES ${MODULE_NAME})
+            list(APPEND EVEREST_MODULES ${MODULE_NAME})
             add_subdirectory(${MODULE_PATH})
         endif()
     else()
@@ -627,7 +670,7 @@ function (ev_add_py_module MODULE_NAME)
         return()
     endif()
 
-    # FIXME (aw): this will override EVEREST_MODULES, might not what we want
+    # this will override EVEREST_MODULES, but that is ok because we appended the list earlier
     set_property(
         GLOBAL
         PROPERTY EVEREST_MODULES ${EVEREST_MODULES}

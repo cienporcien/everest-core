@@ -20,7 +20,6 @@ active_modules:
       three_phases: true
       has_ventilation: true
       country_code: DE
-      rcd_enabled: true
       evse_id: DE*PNX*E12345*1
       session_logging: true
       session_logging_xml: false
@@ -28,6 +27,10 @@ active_modules:
       ac_hlc_enabled: true
       ac_hlc_use_5percent: false
       ac_enforce_hlc: false
+      request_zero_power_in_idle: false
+      uk_smartcharging_random_delay_at_any_change: false
+      uk_smartcharging_random_delay_max_duration: 100
+      uk_smartcharging_random_delay_enable: true
     connections:
       bsp:
         - module_id: yeti_driver_1
@@ -48,7 +51,6 @@ active_modules:
       three_phases: true
       has_ventilation: true
       country_code: DE
-      rcd_enabled: true
       evse_id: DE*PNX*E12345*2
       session_logging: true
       session_logging_xml: false
@@ -65,37 +67,41 @@ active_modules:
           implementation_id: powermeter
   yeti_driver_1:
     module: JsYetiSimulator
+    config_module:
+      connector_id: 1
   yeti_driver_2:
     module: JsYetiSimulator
+    config_module:
+      connector_id: 2
   slac:
     module: JsSlacSimulator
-  car_simulator_1:
-    module: JsCarSimulator
+  ev_manager_1:
+    module: JsEvManager
     config_module:
       connector_id: 1
       auto_enable: true
       auto_exec: false
       auto_exec_commands: sleep 1;iec_wait_pwr_ready;sleep 1;draw_power_regulated 16,3;sleep 30;unplug
     connections:
-      simulation_control:
+      ev_board_support:
         - module_id: yeti_driver_1
-          implementation_id: yeti_simulation_control
+          implementation_id: ev_board_support
       ev:
         - module_id: iso15118_car
           implementation_id: ev
       slac:
         - module_id: slac
           implementation_id: ev
-  car_simulator_2:
-    module: JsCarSimulator
+  ev_manager_2:
+    module: JsEvManager
     config_module:
       connector_id: 2
       auto_enable: true
       auto_exec: false
     connections:
-      simulation_control:
+      ev_board_support:
         - module_id: yeti_driver_2
-          implementation_id: yeti_simulation_control
+          implementation_id: ev_board_support
   auth:
     module: Auth
     config_module:
@@ -146,7 +152,7 @@ active_modules:
     config_module:
       schedule_total_duration: 2
       schedule_interval_duration: 15
-      debug: true
+      debug: false
     connections:
       energy_trunk:
         - module_id: grid_connection_point
@@ -172,4 +178,7 @@ active_modules:
       evse_manager:
         - module_id: evse_manager_1
           implementation_id: evse
+      random_delay:
+        - module_id: evse_manager_1
+          implementation_id: random_delay
 x-module-layout: {}

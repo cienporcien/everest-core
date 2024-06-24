@@ -4,523 +4,180 @@
 
 #include <fmt/core.h>
 #include <fstream>
-#include <websocketpp/uri.hpp>
 
+#include <websocketpp_utils/uri.hpp>
+
+#include <conversions.hpp>
 #include <evse_security_ocpp.hpp>
 namespace module {
 
-const std::string INIT_SQL = "init_core.sql";
+const std::string SQL_CORE_MIGRTATIONS = "core_migrations";
 const std::string CERTS_DIR = "certs";
-
-const std::string KVS_OCPP201_INOPERATIVE_KEY_PREFIX = "OCPP201_INOPERATIVE_";
 
 namespace fs = std::filesystem;
 
-ocpp::v201::FirmwareStatusEnum get_firmware_status_notification(const types::system::FirmwareUpdateStatusEnum status) {
-    switch (status) {
-    case types::system::FirmwareUpdateStatusEnum::Downloaded:
-        return ocpp::v201::FirmwareStatusEnum::Downloaded;
-    case types::system::FirmwareUpdateStatusEnum::DownloadFailed:
-        return ocpp::v201::FirmwareStatusEnum::DownloadFailed;
-    case types::system::FirmwareUpdateStatusEnum::Downloading:
-        return ocpp::v201::FirmwareStatusEnum::Downloading;
-    case types::system::FirmwareUpdateStatusEnum::DownloadScheduled:
-        return ocpp::v201::FirmwareStatusEnum::DownloadScheduled;
-    case types::system::FirmwareUpdateStatusEnum::DownloadPaused:
-        return ocpp::v201::FirmwareStatusEnum::DownloadPaused;
-    case types::system::FirmwareUpdateStatusEnum::Idle:
-        return ocpp::v201::FirmwareStatusEnum::Idle;
-    case types::system::FirmwareUpdateStatusEnum::InstallationFailed:
-        return ocpp::v201::FirmwareStatusEnum::InstallationFailed;
-    case types::system::FirmwareUpdateStatusEnum::Installing:
-        return ocpp::v201::FirmwareStatusEnum::Installing;
-    case types::system::FirmwareUpdateStatusEnum::Installed:
-        return ocpp::v201::FirmwareStatusEnum::Installed;
-    case types::system::FirmwareUpdateStatusEnum::InstallRebooting:
-        return ocpp::v201::FirmwareStatusEnum::InstallRebooting;
-    case types::system::FirmwareUpdateStatusEnum::InstallScheduled:
-        return ocpp::v201::FirmwareStatusEnum::InstallScheduled;
-    case types::system::FirmwareUpdateStatusEnum::InstallVerificationFailed:
-        return ocpp::v201::FirmwareStatusEnum::InstallVerificationFailed;
-    case types::system::FirmwareUpdateStatusEnum::InvalidSignature:
-        return ocpp::v201::FirmwareStatusEnum::InvalidSignature;
-    case types::system::FirmwareUpdateStatusEnum::SignatureVerified:
-        return ocpp::v201::FirmwareStatusEnum::SignatureVerified;
-    default:
-        throw std::out_of_range("Could not convert FirmwareUpdateStatusEnum to FirmwareStatusEnum");
-    }
-}
-
-types::evse_manager::StopTransactionReason get_stop_reason(const ocpp::v201::ReasonEnum& stop_reason) {
-    switch (stop_reason) {
+TxEvent get_tx_event(const ocpp::v201::ReasonEnum reason) {
+    switch (reason) {
     case ocpp::v201::ReasonEnum::DeAuthorized:
-        return types::evse_manager::StopTransactionReason::DeAuthorized;
-    case ocpp::v201::ReasonEnum::EmergencyStop:
-        return types::evse_manager::StopTransactionReason::EmergencyStop;
-    case ocpp::v201::ReasonEnum::EnergyLimitReached:
-        return types::evse_manager::StopTransactionReason::EnergyLimitReached;
-    case ocpp::v201::ReasonEnum::EVDisconnected:
-        return types::evse_manager::StopTransactionReason::EVDisconnected;
-    case ocpp::v201::ReasonEnum::GroundFault:
-        return types::evse_manager::StopTransactionReason::GroundFault;
-    case ocpp::v201::ReasonEnum::ImmediateReset:
-        return types::evse_manager::StopTransactionReason::HardReset;
-    case ocpp::v201::ReasonEnum::Local:
-        return types::evse_manager::StopTransactionReason::Local;
-    case ocpp::v201::ReasonEnum::LocalOutOfCredit:
-        return types::evse_manager::StopTransactionReason::LocalOutOfCredit;
-    case ocpp::v201::ReasonEnum::MasterPass:
-        return types::evse_manager::StopTransactionReason::MasterPass;
-    case ocpp::v201::ReasonEnum::Other:
-        return types::evse_manager::StopTransactionReason::Other;
-    case ocpp::v201::ReasonEnum::OvercurrentFault:
-        return types::evse_manager::StopTransactionReason::OvercurrentFault;
-    case ocpp::v201::ReasonEnum::PowerLoss:
-        return types::evse_manager::StopTransactionReason::PowerLoss;
-    case ocpp::v201::ReasonEnum::PowerQuality:
-        return types::evse_manager::StopTransactionReason::PowerQuality;
-    case ocpp::v201::ReasonEnum::Reboot:
-        return types::evse_manager::StopTransactionReason::Reboot;
     case ocpp::v201::ReasonEnum::Remote:
-        return types::evse_manager::StopTransactionReason::Remote;
-    case ocpp::v201::ReasonEnum::SOCLimitReached:
-        return types::evse_manager::StopTransactionReason::SOCLimitReached;
-    case ocpp::v201::ReasonEnum::StoppedByEV:
-        return types::evse_manager::StopTransactionReason::StoppedByEV;
-    case ocpp::v201::ReasonEnum::TimeLimitReached:
-        return types::evse_manager::StopTransactionReason::TimeLimitReached;
-    case ocpp::v201::ReasonEnum::Timeout:
-        return types::evse_manager::StopTransactionReason::Timeout;
+    case ocpp::v201::ReasonEnum::Local:
+    case ocpp::v201::ReasonEnum::MasterPass:
+        return TxEvent::DEAUTHORIZED;
+    case ocpp::v201::ReasonEnum::EVDisconnected:
+        return TxEvent::EV_DISCONNECTED;
     default:
-        return types::evse_manager::StopTransactionReason::Other;
+        return TxEvent::NONE;
     }
 }
 
-ocpp::v201::DataTransferStatusEnum to_ocpp(types::ocpp::DataTransferStatus status) {
-    switch (status) {
-    case types::ocpp::DataTransferStatus::Accepted:
-        return ocpp::v201::DataTransferStatusEnum::Accepted;
-    case types::ocpp::DataTransferStatus::Rejected:
-        return ocpp::v201::DataTransferStatusEnum::Rejected;
-    case types::ocpp::DataTransferStatus::UnknownMessageId:
-        return ocpp::v201::DataTransferStatusEnum::UnknownMessageId;
-    case types::ocpp::DataTransferStatus::UnknownVendorId:
-        return ocpp::v201::DataTransferStatusEnum::UnknownVendorId;
-    default:
-        return ocpp::v201::DataTransferStatusEnum::UnknownVendorId;
+std::set<TxStartStopPoint> get_tx_start_stop_points(const std::string& tx_start_stop_point_csl) {
+    std::set<TxStartStopPoint> tx_start_stop_points;
+    std::vector<std::string> csv;
+    std::string str;
+    std::stringstream ss(tx_start_stop_point_csl);
+    while (std::getline(ss, str, ',')) {
+        csv.push_back(str);
     }
+
+    for (const auto tx_start_stop_point : csv) {
+        if (tx_start_stop_point == "ParkingBayOccupancy") {
+            tx_start_stop_points.insert(TxStartStopPoint::ParkingBayOccupancy);
+        } else if (tx_start_stop_point == "EVConnected") {
+            tx_start_stop_points.insert(TxStartStopPoint::EVConnected);
+        } else if (tx_start_stop_point == "Authorized") {
+            tx_start_stop_points.insert(TxStartStopPoint::Authorized);
+        } else if (tx_start_stop_point == "PowerPathClosed") {
+            tx_start_stop_points.insert(TxStartStopPoint::PowerPathClosed);
+        } else if (tx_start_stop_point == "EnergyTransfer") {
+            tx_start_stop_points.insert(TxStartStopPoint::EnergyTransfer);
+        } else if (tx_start_stop_point == "DataSigned") {
+            tx_start_stop_points.insert(TxStartStopPoint::DataSigned);
+        } else {
+            // default to PowerPathClosed for now
+            tx_start_stop_points.insert(TxStartStopPoint::PowerPathClosed);
+        }
+    }
+    return tx_start_stop_points;
 }
 
-ocpp::v201::SampledValue get_sampled_value(const ocpp::v201::ReadingContextEnum& reading_context,
-                                           const ocpp::v201::MeasurandEnum& measurand, const std::string& unit,
-                                           const std::optional<ocpp::v201::PhaseEnum> phase) {
-    ocpp::v201::SampledValue sampled_value;
-    ocpp::v201::UnitOfMeasure unit_of_measure;
-    sampled_value.context = reading_context;
-    sampled_value.location = ocpp::v201::LocationEnum::Outlet;
-    sampled_value.measurand = measurand;
-    unit_of_measure.unit = unit;
-    sampled_value.unitOfMeasure = unit_of_measure;
-    sampled_value.phase = phase;
-    return sampled_value;
-}
-
-ocpp::v201::MeterValue get_meter_value(const types::powermeter::Powermeter& power_meter,
-                                       const ocpp::v201::ReadingContextEnum& reading_context) {
-    ocpp::v201::MeterValue meter_value;
-    meter_value.timestamp = ocpp::DateTime(power_meter.timestamp);
-
-    // Energy.Active.Import.Register
-    ocpp::v201::SampledValue sampled_value = get_sampled_value(
-        reading_context, ocpp::v201::MeasurandEnum::Energy_Active_Import_Register, "Wh", std::nullopt);
-    sampled_value.value = power_meter.energy_Wh_import.total;
-    meter_value.sampledValue.push_back(sampled_value);
-    if (power_meter.energy_Wh_import.L1.has_value()) {
-        sampled_value = get_sampled_value(reading_context, ocpp::v201::MeasurandEnum::Energy_Active_Import_Register,
-                                          "Wh", ocpp::v201::PhaseEnum::L1);
-        sampled_value.value = power_meter.energy_Wh_import.L1.value();
-        meter_value.sampledValue.push_back(sampled_value);
-    }
-    if (power_meter.energy_Wh_import.L2.has_value()) {
-        sampled_value = get_sampled_value(reading_context, ocpp::v201::MeasurandEnum::Energy_Active_Import_Register,
-                                          "Wh", ocpp::v201::PhaseEnum::L2);
-        sampled_value.value = power_meter.energy_Wh_import.L2.value();
-        meter_value.sampledValue.push_back(sampled_value);
-    }
-    if (power_meter.energy_Wh_import.L3.has_value()) {
-        sampled_value = get_sampled_value(reading_context, ocpp::v201::MeasurandEnum::Energy_Active_Import_Register,
-                                          "Wh", ocpp::v201::PhaseEnum::L3);
-        sampled_value.value = power_meter.energy_Wh_import.L3.value();
-        meter_value.sampledValue.push_back(sampled_value);
-    }
-
-    // Energy.Active.Export.Register
-    if (power_meter.energy_Wh_export.has_value()) {
-        auto sampled_value = get_sampled_value(
-            reading_context, ocpp::v201::MeasurandEnum::Energy_Active_Export_Register, "Wh", std::nullopt);
-        sampled_value.value = power_meter.energy_Wh_export.value().total;
-        meter_value.sampledValue.push_back(sampled_value);
-        if (power_meter.energy_Wh_export.value().L1.has_value()) {
-            sampled_value = get_sampled_value(reading_context, ocpp::v201::MeasurandEnum::Energy_Active_Export_Register,
-                                              "Wh", ocpp::v201::PhaseEnum::L1);
-            sampled_value.value = power_meter.energy_Wh_import.L1.value();
-            meter_value.sampledValue.push_back(sampled_value);
-        }
-        if (power_meter.energy_Wh_export.value().L2.has_value()) {
-            sampled_value = get_sampled_value(reading_context, ocpp::v201::MeasurandEnum::Energy_Active_Export_Register,
-                                              "Wh", ocpp::v201::PhaseEnum::L2);
-            sampled_value.value = power_meter.energy_Wh_import.L2.value();
-            meter_value.sampledValue.push_back(sampled_value);
-        }
-        if (power_meter.energy_Wh_export.value().L3.has_value()) {
-            sampled_value = get_sampled_value(reading_context, ocpp::v201::MeasurandEnum::Energy_Active_Export_Register,
-                                              "Wh", ocpp::v201::PhaseEnum::L3);
-            sampled_value.value = power_meter.energy_Wh_import.L3.value();
-            meter_value.sampledValue.push_back(sampled_value);
-        }
-    }
-
-    // Power.Active.Import
-    if (power_meter.power_W.has_value()) {
-        auto sampled_value =
-            get_sampled_value(reading_context, ocpp::v201::MeasurandEnum::Power_Active_Import, "W", std::nullopt);
-        sampled_value.value = power_meter.power_W.value().total;
-        meter_value.sampledValue.push_back(sampled_value);
-        if (power_meter.power_W.value().L1.has_value()) {
-            sampled_value = get_sampled_value(reading_context, ocpp::v201::MeasurandEnum::Power_Active_Import, "W",
-                                              ocpp::v201::PhaseEnum::L1);
-            sampled_value.value = power_meter.energy_Wh_import.L1.value();
-            meter_value.sampledValue.push_back(sampled_value);
-        }
-        if (power_meter.power_W.value().L2.has_value()) {
-            sampled_value = get_sampled_value(reading_context, ocpp::v201::MeasurandEnum::Power_Active_Import, "W",
-                                              ocpp::v201::PhaseEnum::L2);
-            sampled_value.value = power_meter.energy_Wh_import.L2.value();
-            meter_value.sampledValue.push_back(sampled_value);
-        }
-        if (power_meter.power_W.value().L3.has_value()) {
-            sampled_value = get_sampled_value(reading_context, ocpp::v201::MeasurandEnum::Power_Active_Import, "W",
-                                              ocpp::v201::PhaseEnum::L3);
-            sampled_value.value = power_meter.energy_Wh_import.L3.value();
-            meter_value.sampledValue.push_back(sampled_value);
-        }
-    }
-
-    // Power.Reactive.Import
-    if (power_meter.VAR.has_value()) {
-        auto sampled_value =
-            get_sampled_value(reading_context, ocpp::v201::MeasurandEnum::Power_Reactive_Import, "var", std::nullopt);
-        sampled_value.value = power_meter.VAR.value().total;
-        meter_value.sampledValue.push_back(sampled_value);
-        if (power_meter.VAR.value().L1.has_value()) {
-            sampled_value = get_sampled_value(reading_context, ocpp::v201::MeasurandEnum::Power_Reactive_Import, "var",
-                                              ocpp::v201::PhaseEnum::L1);
-            sampled_value.value = power_meter.energy_Wh_import.L1.value();
-            meter_value.sampledValue.push_back(sampled_value);
-        }
-        if (power_meter.VAR.value().L2.has_value()) {
-            sampled_value = get_sampled_value(reading_context, ocpp::v201::MeasurandEnum::Power_Reactive_Import, "var",
-                                              ocpp::v201::PhaseEnum::L2);
-            sampled_value.value = power_meter.energy_Wh_import.L2.value();
-            meter_value.sampledValue.push_back(sampled_value);
-        }
-        if (power_meter.VAR.value().L3.has_value()) {
-            sampled_value = get_sampled_value(reading_context, ocpp::v201::MeasurandEnum::Power_Reactive_Import, "var",
-                                              ocpp::v201::PhaseEnum::L3);
-            sampled_value.value = power_meter.energy_Wh_import.L3.value();
-            meter_value.sampledValue.push_back(sampled_value);
-        }
-    }
-
-    // Current.Import
-    if (power_meter.current_A.has_value()) {
-        auto sampled_value =
-            get_sampled_value(reading_context, ocpp::v201::MeasurandEnum::Current_Import, "A", std::nullopt);
-        if (power_meter.current_A.value().L1.has_value()) {
-            sampled_value = get_sampled_value(reading_context, ocpp::v201::MeasurandEnum::Current_Import, "A",
-                                              ocpp::v201::PhaseEnum::L1);
-            sampled_value.value = power_meter.current_A.value().L1.value();
-            meter_value.sampledValue.push_back(sampled_value);
-        }
-        if (power_meter.current_A.value().L2.has_value()) {
-            sampled_value = get_sampled_value(reading_context, ocpp::v201::MeasurandEnum::Current_Import, "A",
-                                              ocpp::v201::PhaseEnum::L2);
-            sampled_value.value = power_meter.current_A.value().L2.value();
-            meter_value.sampledValue.push_back(sampled_value);
-        }
-        if (power_meter.current_A.value().L3.has_value()) {
-            sampled_value = get_sampled_value(reading_context, ocpp::v201::MeasurandEnum::Current_Import, "A",
-                                              ocpp::v201::PhaseEnum::L3);
-            sampled_value.value = power_meter.current_A.value().L3.value();
-            meter_value.sampledValue.push_back(sampled_value);
-        }
-        if (power_meter.current_A.value().DC.has_value()) {
-            sampled_value =
-                get_sampled_value(reading_context, ocpp::v201::MeasurandEnum::Current_Import, "A", std::nullopt);
-            sampled_value.value = power_meter.current_A.value().DC.value();
-            meter_value.sampledValue.push_back(sampled_value);
-        }
-        if (power_meter.current_A.value().N.has_value()) {
-            sampled_value = get_sampled_value(reading_context, ocpp::v201::MeasurandEnum::Current_Import, "A",
-                                              ocpp::v201::PhaseEnum::N);
-            sampled_value.value = power_meter.current_A.value().N.value();
-            meter_value.sampledValue.push_back(sampled_value);
-        }
-    }
-
-    // Voltage
-    if (power_meter.voltage_V.has_value()) {
-        if (power_meter.voltage_V.value().L1.has_value()) {
-            sampled_value = get_sampled_value(reading_context, ocpp::v201::MeasurandEnum::Voltage, "V",
-                                              ocpp::v201::PhaseEnum::L1_N);
-            sampled_value.value = power_meter.voltage_V.value().L1.value();
-            meter_value.sampledValue.push_back(sampled_value);
-        }
-        if (power_meter.voltage_V.value().L2.has_value()) {
-            sampled_value = get_sampled_value(reading_context, ocpp::v201::MeasurandEnum::Voltage, "V",
-                                              ocpp::v201::PhaseEnum::L2_N);
-            sampled_value.value = power_meter.voltage_V.value().L2.value();
-            meter_value.sampledValue.push_back(sampled_value);
-        }
-        if (power_meter.voltage_V.value().L3.has_value()) {
-            sampled_value = get_sampled_value(reading_context, ocpp::v201::MeasurandEnum::Voltage, "V",
-                                              ocpp::v201::PhaseEnum::L3_N);
-            sampled_value.value = power_meter.voltage_V.value().L3.value();
-            meter_value.sampledValue.push_back(sampled_value);
-        }
-        if (power_meter.voltage_V.value().DC.has_value()) {
-            sampled_value = get_sampled_value(reading_context, ocpp::v201::MeasurandEnum::Voltage, "V", std::nullopt);
-            sampled_value.value = power_meter.voltage_V.value().DC.value();
-            meter_value.sampledValue.push_back(sampled_value);
-        }
-    }
-    return meter_value;
-}
-
-ocpp::v201::LogStatusEnum get_log_status_enum(types::system::UploadLogsStatus log_status) {
-    switch (log_status) {
-    case types::system::UploadLogsStatus::Accepted:
-        return ocpp::v201::LogStatusEnum::Accepted;
-    case types::system::UploadLogsStatus::Rejected:
-        return ocpp::v201::LogStatusEnum::Rejected;
-    case types::system::UploadLogsStatus::AcceptedCancelled:
-        return ocpp::v201::LogStatusEnum::AcceptedCanceled;
-    default:
-        throw std::runtime_error("Could not convert UploadLogsStatus");
-    }
-}
-
-types::system::UploadLogsRequest get_log_request(const ocpp::v201::GetLogRequest& request) {
-    types::system::UploadLogsRequest _request;
-    _request.location = request.log.remoteLocation.get();
-    _request.retries = request.retries;
-    _request.retry_interval_s = request.retryInterval;
-
-    if (request.log.oldestTimestamp.has_value()) {
-        _request.oldest_timestamp = request.log.oldestTimestamp.value().to_rfc3339();
-    }
-    if (request.log.latestTimestamp.has_value()) {
-        _request.latest_timestamp = request.log.latestTimestamp.value().to_rfc3339();
-    }
-    _request.type = ocpp::v201::conversions::log_enum_to_string(request.logType);
-    _request.request_id = request.requestId;
-    return _request;
-}
-
-ocpp::v201::GetLogResponse get_log_response(const types::system::UploadLogsResponse& response) {
-    ocpp::v201::GetLogResponse _response;
-    _response.status = get_log_status_enum(response.upload_logs_status);
-    _response.filename = response.file_name;
-    return _response;
-}
-
-ocpp::v201::UpdateFirmwareStatusEnum
-get_update_firmware_status_enum(const types::system::UpdateFirmwareResponse& response) {
-    switch (response) {
-    case types::system::UpdateFirmwareResponse::Accepted:
-        return ocpp::v201::UpdateFirmwareStatusEnum::Accepted;
-    case types::system::UpdateFirmwareResponse::Rejected:
-        return ocpp::v201::UpdateFirmwareStatusEnum::Rejected;
-    case types::system::UpdateFirmwareResponse::AcceptedCancelled:
-        return ocpp::v201::UpdateFirmwareStatusEnum::AcceptedCanceled;
-    case types::system::UpdateFirmwareResponse::InvalidCertificate:
-        return ocpp::v201::UpdateFirmwareStatusEnum::InvalidCertificate;
-    case types::system::UpdateFirmwareResponse::RevokedCertificate:
-        return ocpp::v201::UpdateFirmwareStatusEnum::RevokedCertificate;
-    default:
-        throw std::runtime_error("Could not convert UpdateFirmwareResponse");
-    }
-}
-
-types::system::FirmwareUpdateRequest get_firmware_update_request(const ocpp::v201::UpdateFirmwareRequest& request) {
-    types::system::FirmwareUpdateRequest _request;
-    _request.request_id = request.requestId;
-    _request.location = request.firmware.location.get();
-    _request.retries = request.retries;
-    _request.retry_interval_s = request.retryInterval;
-    _request.retrieve_timestamp = request.firmware.retrieveDateTime.to_rfc3339();
-    if (request.firmware.installDateTime.has_value()) {
-        _request.install_timestamp = request.firmware.installDateTime.value().to_rfc3339();
-    }
-    if (request.firmware.signingCertificate.has_value()) {
-        _request.signing_certificate = request.firmware.signingCertificate.value().get();
-    }
-    if (request.firmware.signature.has_value()) {
-        _request.signature = request.firmware.signature.value().get();
-    }
-    return _request;
-}
-
-ocpp::v201::UpdateFirmwareResponse get_update_firmware_response(const types::system::UpdateFirmwareResponse& response) {
-    ocpp::v201::UpdateFirmwareResponse _response;
-    _response.status = get_update_firmware_status_enum(response);
-    return _response;
-}
-
-ocpp::v201::UploadLogStatusEnum get_upload_log_status_enum(types::system::LogStatusEnum status) {
-    switch (status) {
-    case types::system::LogStatusEnum::BadMessage:
-        return ocpp::v201::UploadLogStatusEnum::BadMessage;
-    case types::system::LogStatusEnum::Idle:
-        return ocpp::v201::UploadLogStatusEnum::Idle;
-    case types::system::LogStatusEnum::NotSupportedOperation:
-        return ocpp::v201::UploadLogStatusEnum::NotSupportedOperation;
-    case types::system::LogStatusEnum::PermissionDenied:
-        return ocpp::v201::UploadLogStatusEnum::PermissionDenied;
-    case types::system::LogStatusEnum::Uploaded:
-        return ocpp::v201::UploadLogStatusEnum::Uploaded;
-    case types::system::LogStatusEnum::UploadFailure:
-        return ocpp::v201::UploadLogStatusEnum::UploadFailure;
-    case types::system::LogStatusEnum::Uploading:
-        return ocpp::v201::UploadLogStatusEnum::Uploading;
-    default:
-        throw std::runtime_error("Could not convert UploadLogStatusEnum");
-    }
-}
-
-ocpp::v201::BootReasonEnum get_boot_reason(types::system::BootReason reason) {
-    switch (reason) {
-    case types::system::BootReason::ApplicationReset:
-        return ocpp::v201::BootReasonEnum::ApplicationReset;
-    case types::system::BootReason::FirmwareUpdate:
-        return ocpp::v201::BootReasonEnum::FirmwareUpdate;
-    case types::system::BootReason::LocalReset:
-        return ocpp::v201::BootReasonEnum::LocalReset;
-    case types::system::BootReason::PowerUp:
-        return ocpp::v201::BootReasonEnum::PowerUp;
-    case types::system::BootReason::RemoteReset:
-        return ocpp::v201::BootReasonEnum::RemoteReset;
-    case types::system::BootReason::ScheduledReset:
-        return ocpp::v201::BootReasonEnum::ScheduledReset;
-    case types::system::BootReason::Triggered:
-        return ocpp::v201::BootReasonEnum::Triggered;
-    case types::system::BootReason::Unknown:
-        return ocpp::v201::BootReasonEnum::Unknown;
-    case types::system::BootReason::Watchdog:
-        return ocpp::v201::BootReasonEnum::Watchdog;
-    default:
-        throw std::runtime_error("Could not convert BootReasonEnum");
-    }
-}
-
-ocpp::v201::ReasonEnum get_reason(types::evse_manager::StopTransactionReason reason) {
-    switch (reason) {
-    case types::evse_manager::StopTransactionReason::DeAuthorized:
-        return ocpp::v201::ReasonEnum::DeAuthorized;
-    case types::evse_manager::StopTransactionReason::EmergencyStop:
-        return ocpp::v201::ReasonEnum::EmergencyStop;
-    case types::evse_manager::StopTransactionReason::EnergyLimitReached:
-        return ocpp::v201::ReasonEnum::EnergyLimitReached;
-    case types::evse_manager::StopTransactionReason::EVDisconnected:
-        return ocpp::v201::ReasonEnum::EVDisconnected;
-    case types::evse_manager::StopTransactionReason::GroundFault:
-        return ocpp::v201::ReasonEnum::GroundFault;
-    case types::evse_manager::StopTransactionReason::HardReset:
-        return ocpp::v201::ReasonEnum::ImmediateReset;
-    case types::evse_manager::StopTransactionReason::Local:
-        return ocpp::v201::ReasonEnum::Local;
-    case types::evse_manager::StopTransactionReason::LocalOutOfCredit:
-        return ocpp::v201::ReasonEnum::LocalOutOfCredit;
-    case types::evse_manager::StopTransactionReason::MasterPass:
-        return ocpp::v201::ReasonEnum::MasterPass;
-    case types::evse_manager::StopTransactionReason::Other:
-        return ocpp::v201::ReasonEnum::Other;
-    case types::evse_manager::StopTransactionReason::OvercurrentFault:
-        return ocpp::v201::ReasonEnum::OvercurrentFault;
-    case types::evse_manager::StopTransactionReason::PowerLoss:
-        return ocpp::v201::ReasonEnum::PowerLoss;
-    case types::evse_manager::StopTransactionReason::PowerQuality:
-        return ocpp::v201::ReasonEnum::PowerQuality;
-    case types::evse_manager::StopTransactionReason::Reboot:
-        return ocpp::v201::ReasonEnum::Reboot;
-    case types::evse_manager::StopTransactionReason::Remote:
-        return ocpp::v201::ReasonEnum::Remote;
-    case types::evse_manager::StopTransactionReason::SOCLimitReached:
-        return ocpp::v201::ReasonEnum::SOCLimitReached;
-    case types::evse_manager::StopTransactionReason::StoppedByEV:
-        return ocpp::v201::ReasonEnum::StoppedByEV;
-    case types::evse_manager::StopTransactionReason::TimeLimitReached:
-        return ocpp::v201::ReasonEnum::TimeLimitReached;
-    case types::evse_manager::StopTransactionReason::Timeout:
-        return ocpp::v201::ReasonEnum::Timeout;
-    default:
-        return ocpp::v201::ReasonEnum::Other;
-    }
-}
-
-void OCPP201::init_evse_ready_map() {
+void OCPP201::init_evse_maps() {
     std::lock_guard<std::mutex> lk(this->evse_ready_mutex);
     for (size_t evse_id = 1; evse_id <= this->r_evse_manager.size(); evse_id++) {
         this->evse_ready_map[evse_id] = false;
+        this->evse_soc_map[evse_id] = std::nullopt;
     }
 }
 
-void OCPP201::init_evses() {
-
-    if (this->r_kvs->call_exists(KVS_OCPP201_INOPERATIVE_KEY_PREFIX + "0")) {
-        this->cs_operational_status = ocpp::v201::OperationalStatusEnum::Inoperative;
-    } else {
-        this->cs_operational_status = ocpp::v201::OperationalStatusEnum::Operative;
-    }
-
+std::map<int32_t, int32_t> OCPP201::get_connector_structure() {
+    std::map<int32_t, int32_t> evse_connector_structure;
     int evse_id = 1;
     for (const auto& evse : this->r_evse_manager) {
-        int connector_id = 1;
         auto _evse = evse->call_get_evse();
+        int32_t num_connectors = _evse.connectors.size();
+
         if (_evse.id != evse_id) {
             throw std::runtime_error("Configured evse_id(s) must start with 1 counting upwards");
         }
-
-        if (_evse.connectors.size() == 0) {
-            _evse.connectors.push_back({1});
-        }
-
-        Evse module_evse;
-        module_evse.evse_id = evse_id;
-
-        if (this->r_kvs->call_exists(KVS_OCPP201_INOPERATIVE_KEY_PREFIX + std::to_string(evse_id))) {
-            module_evse.operational_state = ocpp::v201::OperationalStatusEnum::Inoperative;
+        if (num_connectors > 0) {
+            int connector_id = 1;
+            for (const auto& connector : _evse.connectors) {
+                if (connector.id != connector_id) {
+                    throw std::runtime_error("Configured connector_id(s) must start with 1 counting upwards");
+                }
+                connector_id++;
+            }
         } else {
-            module_evse.operational_state = ocpp::v201::OperationalStatusEnum::Operative;
+            num_connectors = 1;
         }
 
-        for (const auto& connector : _evse.connectors) {
-            if (connector.id != connector_id) {
-                throw std::runtime_error("Configured connector_id(s) must start with 1 counting upwards");
-            }
-
-            auto connector_id_str = std::to_string(evse_id) + "." + std::to_string(connector_id);
-            if (this->r_kvs->call_exists(KVS_OCPP201_INOPERATIVE_KEY_PREFIX + connector_id_str)) {
-                module_evse.connectors[connector_id] = ocpp::v201::OperationalStatusEnum::Inoperative;
-            } else {
-                module_evse.connectors[connector_id] = ocpp::v201::OperationalStatusEnum::Operative;
-            }
-            connector_id++;
-        }
-
-        this->evses[_evse.id] = module_evse;
+        evse_connector_structure[evse_id] = num_connectors;
         evse_id++;
     }
+    return evse_connector_structure;
+}
+
+types::powermeter::Powermeter get_meter_value(const types::evse_manager::SessionEvent& session_event) {
+    const auto event_type = session_event.event;
+    if (event_type == types::evse_manager::SessionEventEnum::SessionStarted) {
+        if (!session_event.session_started.has_value()) {
+            throw std::runtime_error("SessionEvent SessionStarted does not contain session_started context");
+        }
+        return session_event.session_started.value().meter_value;
+    } else if (event_type == types::evse_manager::SessionEventEnum::SessionFinished) {
+        if (!session_event.session_finished.has_value()) {
+            throw std::runtime_error("SessionEvent SessionFinished does not contain session_finished context");
+        }
+        return session_event.session_finished.value().meter_value;
+    } else if (event_type == types::evse_manager::SessionEventEnum::TransactionStarted) {
+        if (!session_event.transaction_started.has_value()) {
+            throw std::runtime_error("SessionEvent TransactionStarted does not contain transaction_started context");
+        }
+        return session_event.transaction_started.value().meter_value;
+    } else if (event_type == types::evse_manager::SessionEventEnum::TransactionFinished) {
+        if (!session_event.transaction_finished.has_value()) {
+            throw std::runtime_error("SessionEvent TransactionFinished does not contain transaction_finished context");
+        }
+        return session_event.transaction_finished.value().meter_value;
+    } else if (event_type == types::evse_manager::SessionEventEnum::ChargingStarted or
+               event_type == types::evse_manager::SessionEventEnum::ChargingResumed or
+               event_type == types::evse_manager::SessionEventEnum::ChargingPausedEV or
+               event_type == types::evse_manager::SessionEventEnum::ChargingPausedEVSE) {
+        if (!session_event.charging_state_changed_event.has_value()) {
+            throw std::runtime_error("SessionEvent does not contain charging_state_changed_event context");
+        }
+        return session_event.charging_state_changed_event.value().meter_value;
+    } else if (event_type == types::evse_manager::SessionEventEnum::Authorized or
+               event_type == types::evse_manager::SessionEventEnum::Deauthorized) {
+        if (!session_event.authorization_event.has_value()) {
+            throw std::runtime_error(
+                "SessionEvent Authorized or Deauthorized does not contain authorization_event context");
+        }
+        return session_event.authorization_event.value().meter_value;
+    } else {
+        throw std::runtime_error("Could not retrieve meter value from SessionEvent");
+    }
+}
+
+std::optional<types::units_signed::SignedMeterValue>
+get_signed_meter_value(const types::evse_manager::SessionEvent& session_event) {
+    const auto event_type = session_event.event;
+    if (event_type == types::evse_manager::SessionEventEnum::SessionStarted) {
+        if (!session_event.session_started.has_value()) {
+            throw std::runtime_error("SessionEvent SessionStarted does not contain session_started context");
+        }
+        return session_event.session_started.value().signed_meter_value;
+    } else if (event_type == types::evse_manager::SessionEventEnum::TransactionStarted) {
+        if (!session_event.transaction_started.has_value()) {
+            throw std::runtime_error("SessionEvent TransactionStarted does not contain transaction_started context");
+        }
+        return session_event.transaction_started.value().signed_meter_value;
+    } else if (event_type == types::evse_manager::SessionEventEnum::TransactionFinished) {
+        if (!session_event.transaction_finished.has_value()) {
+            throw std::runtime_error("SessionEvent TransactionFinished does not contain transaction_finished context");
+        }
+        return session_event.transaction_finished.value().signed_meter_value;
+    }
+    return std::nullopt;
+}
+
+std::optional<ocpp::v201::IdToken> get_authorized_id_token(const types::evse_manager::SessionEvent& session_event) {
+    const auto event_type = session_event.event;
+    if (event_type == types::evse_manager::SessionEventEnum::SessionStarted) {
+        if (!session_event.session_started.has_value()) {
+            throw std::runtime_error("SessionEvent SessionStarted does not contain session_started context");
+        }
+        const auto session_started = session_event.session_started.value();
+        if (session_started.id_tag.has_value()) {
+            return conversions::to_ocpp_id_token(session_started.id_tag.value().id_token);
+        }
+    } else if (event_type == types::evse_manager::SessionEventEnum::TransactionStarted) {
+        if (!session_event.transaction_started.has_value()) {
+            throw std::runtime_error("SessionEvent TransactionStarted does not contain transaction_started context");
+        }
+        const auto transaction_started = session_event.transaction_started.value();
+        return conversions::to_ocpp_id_token(transaction_started.id_tag.id_token);
+    }
+    return std::nullopt;
 }
 
 bool OCPP201::all_evse_ready() {
@@ -533,36 +190,12 @@ bool OCPP201::all_evse_ready() {
     return true;
 }
 
-void OCPP201::set_connector_operational_status(const ocpp::v201::OperationalStatusEnum operational_status,
-                                               const int32_t evse_id, const int32_t connector_id, const bool persist) {
-    if (operational_status == ocpp::v201::OperationalStatusEnum::Operative) {
-        this->evses.at(evse_id).connectors.at(connector_id) = ocpp::v201::OperationalStatusEnum::Operative;
-        auto connector_id_str = std::to_string(evse_id) + "." + std::to_string(connector_id);
-        this->r_kvs->call_delete(KVS_OCPP201_INOPERATIVE_KEY_PREFIX + connector_id_str);
-    } else if (persist) {
-        this->evses.at(evse_id).connectors.at(connector_id) = ocpp::v201::OperationalStatusEnum::Inoperative;
-        auto connector_id_str = std::to_string(evse_id) + "." + std::to_string(connector_id);
-        this->r_kvs->call_store(KVS_OCPP201_INOPERATIVE_KEY_PREFIX + connector_id_str, true);
-    }
-}
-
-void OCPP201::set_evse_operational_status(const ocpp::v201::OperationalStatusEnum operational_status,
-                                          const int32_t evse_id, const bool persist) {
-    if (operational_status == ocpp::v201::OperationalStatusEnum::Operative) {
-        this->evses.at(evse_id).operational_state = ocpp::v201::OperationalStatusEnum::Operative;
-        this->r_kvs->call_delete(KVS_OCPP201_INOPERATIVE_KEY_PREFIX + std::to_string(evse_id));
-    } else if (persist) {
-        this->evses.at(evse_id).operational_state = ocpp::v201::OperationalStatusEnum::Inoperative;
-        this->r_kvs->call_store(KVS_OCPP201_INOPERATIVE_KEY_PREFIX + std::to_string(evse_id), true);
-    }
-}
-
 void OCPP201::init() {
     invoke_init(*p_main);
     invoke_init(*p_auth_provider);
     invoke_init(*p_auth_validator);
 
-    this->init_evse_ready_map();
+    this->init_evse_maps();
 
     for (size_t evse_id = 1; evse_id <= this->r_evse_manager.size(); evse_id++) {
         this->r_evse_manager.at(evse_id - 1)->subscribe_ready([this, evse_id](bool ready) {
@@ -576,33 +209,12 @@ void OCPP201::init() {
     }
 }
 
-ocpp::v201::CertificateActionEnum get_certificate_action(const types::iso15118_charger::CertificateActionEnum& action) {
-    switch (action) {
-    case types::iso15118_charger::CertificateActionEnum::Install:
-        return ocpp::v201::CertificateActionEnum::Install;
-    case types::iso15118_charger::CertificateActionEnum::Update:
-        return ocpp::v201::CertificateActionEnum::Update;
-    }
-    throw std::out_of_range("Could not convert CertificateActionEnum"); // this should never happen
-}
-
-types::iso15118_charger::Status get_iso15118_charger_status(const ocpp::v201::Iso15118EVCertificateStatusEnum& status) {
-    switch (status) {
-    case ocpp::v201::Iso15118EVCertificateStatusEnum::Accepted:
-        return types::iso15118_charger::Status::Accepted;
-    case ocpp::v201::Iso15118EVCertificateStatusEnum::Failed:
-        return types::iso15118_charger::Status::Failed;
-    }
-    throw std::out_of_range("Could not convert Iso15118EVCertificateStatusEnum"); // this should never happen
-}
-
 void OCPP201::ready() {
     invoke_ready(*p_main);
     invoke_ready(*p_auth_provider);
     invoke_ready(*p_auth_validator);
 
     this->ocpp_share_path = this->info.paths.share;
-    this->cs_operational_status = ocpp::v201::OperationalStatusEnum::Operative;
 
     const auto device_model_database_path = [&]() {
         const auto config_device_model_path = fs::path(this->config.DeviceModelDatabasePath);
@@ -612,15 +224,6 @@ void OCPP201::ready() {
             return config_device_model_path;
         }
     }();
-
-    const auto etc_certs_path = [&]() {
-        if (this->config.CertsPath.empty()) {
-            return fs::path(this->info.paths.etc) / CERTS_DIR;
-        } else {
-            return fs::path(this->config.CertsPath);
-        }
-    }();
-    EVLOG_info << "OCPP certificates path: " << etc_certs_path.string();
 
     if (!fs::exists(this->config.MessageLogPath)) {
         try {
@@ -639,8 +242,8 @@ void OCPP201::ready() {
         try {
             return this->r_system->call_is_reset_allowed(types::system::ResetType::NotSpecified);
         } catch (std::out_of_range& e) {
-            EVLOG_warning
-                << "Could not convert OCPP ResetEnum to EVerest ResetType while executing is_reset_allowed_callback.";
+            EVLOG_warning << "Could not convert OCPP ResetEnum to EVerest ResetType while executing "
+                             "is_reset_allowed_callback.";
             return false;
         }
     };
@@ -660,59 +263,34 @@ void OCPP201::ready() {
         }
     };
 
-    callbacks.change_availability_callback = [this](const ocpp::v201::ChangeAvailabilityRequest& request,
-                                                    const bool persist) {
-        if (request.evse.has_value()) {
-            auto evse_id = request.evse.value().id;
-            auto connector_id = request.evse.value().connectorId;
-            if (request.operationalStatus == ocpp::v201::OperationalStatusEnum::Operative) {
-                // change to operative
-                if (connector_id.has_value()) {
-                    // connector is addressed
-                    this->set_connector_operational_status(ocpp::v201::OperationalStatusEnum::Operative, evse_id,
-                                                           connector_id.value(), persist);
-                } else {
-                    // EVSE is addressed
-                    this->set_evse_operational_status(ocpp::v201::OperationalStatusEnum::Operative, evse_id, persist);
+    callbacks.connector_effective_operative_status_changed_callback =
+        [this](const int32_t evse_id, const int32_t connector_id, const ocpp::v201::OperationalStatusEnum new_status) {
+            if (new_status == ocpp::v201::OperationalStatusEnum::Operative) {
+                if (this->r_evse_manager.at(evse_id - 1)
+                        ->call_enable_disable(connector_id, {types::evse_manager::Enable_source::CSMS,
+                                                             types::evse_manager::Enable_state::Enable, 5000})) {
+                    this->charge_point->on_enabled(evse_id, connector_id);
                 }
-                this->r_evse_manager.at(evse_id - 1)->call_enable(request.evse.value().connectorId.value_or(0));
             } else {
-                // change to inoperative
-                if (connector_id.has_value()) {
-                    // connector is addressed
-                    this->set_connector_operational_status(ocpp::v201::OperationalStatusEnum::Inoperative, evse_id,
-                                                           connector_id.value(), persist);
-                } else {
-                    // EVSE is addressed
-                    this->set_evse_operational_status(ocpp::v201::OperationalStatusEnum::Inoperative, evse_id, persist);
-                }
-                this->r_evse_manager.at(evse_id - 1)->call_disable(request.evse.value().connectorId.value_or(0));
-            }
-        } else {
-            // whole charging station is adressed
-            this->cs_operational_status = request.operationalStatus;
-            for (size_t evse_id = 1; evse_id <= this->r_evse_manager.size(); evse_id++) {
-                if (this->cs_operational_status == ocpp::v201::OperationalStatusEnum::Operative and
-                    this->evses.at(evse_id).operational_state == ocpp::v201::OperationalStatusEnum::Operative) {
-                    this->r_evse_manager.at(evse_id - 1)->call_enable(0);
-                    this->r_kvs->call_delete(KVS_OCPP201_INOPERATIVE_KEY_PREFIX + "0");
-                } else if (request.operationalStatus == ocpp::v201::OperationalStatusEnum::Inoperative) {
-                    this->r_evse_manager.at(evse_id - 1)->call_disable(0);
-                    this->r_kvs->call_store(KVS_OCPP201_INOPERATIVE_KEY_PREFIX + "0", true);
+                if (this->r_evse_manager.at(evse_id - 1)
+                        ->call_enable_disable(connector_id, {types::evse_manager::Enable_source::CSMS,
+                                                             types::evse_manager::Enable_state::Disable, 5000})) {
+                    this->charge_point->on_unavailable(evse_id, connector_id);
                 }
             }
-        }
-    };
+        };
 
     callbacks.remote_start_transaction_callback = [this](const ocpp::v201::RequestStartTransactionRequest& request,
                                                          const bool authorize_remote_start) {
         types::authorization::ProvidedIdToken provided_token;
-        provided_token.id_token = request.idToken.idToken.get();
+        provided_token.id_token = conversions::to_everest_id_token(request.idToken);
         provided_token.authorization_type = types::authorization::AuthorizationType::OCPP;
-        provided_token.id_token_type = types::authorization::string_to_id_token_type(
-            ocpp::v201::conversions::id_token_enum_to_string(request.idToken.type));
         provided_token.prevalidated = !authorize_remote_start;
         provided_token.request_id = request.remoteStartId;
+
+        if (request.groupIdToken.has_value()) {
+            provided_token.parent_id_token = conversions::to_everest_id_token(request.groupIdToken.value());
+        }
 
         if (request.evseId.has_value()) {
             provided_token.connectors = std::vector<int32_t>{request.evseId.value()};
@@ -723,7 +301,7 @@ void OCPP201::ready() {
     callbacks.stop_transaction_callback = [this](const int32_t evse_id, const ocpp::v201::ReasonEnum& stop_reason) {
         if (evse_id > 0 && evse_id <= this->r_evse_manager.size()) {
             types::evse_manager::StopTransactionRequest req;
-            req.reason = get_stop_reason(stop_reason);
+            req.reason = conversions::to_everest_stop_transaction_reason(stop_reason);
             this->r_evse_manager.at(evse_id - 1)->call_stop_transaction(req);
         }
     };
@@ -751,8 +329,8 @@ void OCPP201::ready() {
     };
 
     callbacks.get_log_request_callback = [this](const ocpp::v201::GetLogRequest& request) {
-        const auto response = this->r_system->call_upload_logs(get_log_request(request));
-        return get_log_response(response);
+        const auto response = this->r_system->call_upload_logs(conversions::to_everest_upload_logs_request(request));
+        return conversions::to_ocpp_get_log_response(response);
     };
 
     callbacks.is_reservation_for_token_callback = [](const int32_t evse_id, const ocpp::CiString<36> idToken,
@@ -763,14 +341,47 @@ void OCPP201::ready() {
     };
 
     callbacks.update_firmware_request_callback = [this](const ocpp::v201::UpdateFirmwareRequest& request) {
-        const auto response = this->r_system->call_update_firmware(get_firmware_update_request(request));
-        return get_update_firmware_response(response);
+        const auto response =
+            this->r_system->call_update_firmware(conversions::to_everest_firmware_update_request(request));
+        return conversions::to_ocpp_update_firmware_response(response);
+    };
+
+    callbacks.variable_changed_callback = [this](const ocpp::v201::SetVariableData& set_variable_data) {
+        if (set_variable_data.component.name == "TxCtrlr" and
+            set_variable_data.variable.name == "EVConnectionTimeOut") {
+            try {
+                auto ev_connection_timeout = std::stoi(set_variable_data.attributeValue.get());
+                this->r_auth->call_set_connection_timeout(ev_connection_timeout);
+            } catch (const std::exception& e) {
+                EVLOG_error << "Could not parse EVConnectionTimeOut and did not set it in Auth module, error: "
+                            << e.what();
+                return;
+            }
+        } else if (set_variable_data.component.name == "AuthCtrlr" and
+                   set_variable_data.variable.name == "MasterPassGroupId") {
+            this->r_auth->call_set_master_pass_group_id(set_variable_data.attributeValue.get());
+        } else if (set_variable_data.component.name == "TxCtrlr" and
+                   set_variable_data.variable.name == "TxStartPoint") {
+            const auto tx_start_points = get_tx_start_stop_points(set_variable_data.attributeValue.get());
+            if (tx_start_points.empty()) {
+                EVLOG_warning << "Could not set TxStartPoints";
+                return;
+            }
+            this->transaction_handler->set_tx_start_points(tx_start_points);
+        } else if (set_variable_data.component.name == "TxCtrlr" and set_variable_data.variable.name == "TxStopPoint") {
+            const auto tx_stop_points = get_tx_start_stop_points(set_variable_data.attributeValue.get());
+            if (tx_stop_points.empty()) {
+                EVLOG_warning << "Could not set TxStartPoints";
+                return;
+            }
+            this->transaction_handler->set_tx_stop_points(tx_stop_points);
+        }
     };
 
     callbacks.validate_network_profile_callback =
         [this](const int32_t configuration_slot,
                const ocpp::v201::NetworkConnectionProfile& network_connection_profile) {
-            auto ws_uri = websocketpp::uri(network_connection_profile.ocppCsmsUrl.get());
+            auto ws_uri = ocpp::uri(network_connection_profile.ocppCsmsUrl.get());
 
             if (ws_uri.get_valid()) {
                 return ocpp::v201::SetNetworkProfileStatusEnum::Accepted;
@@ -788,36 +399,63 @@ void OCPP201::ready() {
         this->r_system->call_allow_firmware_installation();
     };
 
+    callbacks.transaction_event_callback = [this](const ocpp::v201::TransactionEventRequest& transaction_event) {
+        const auto ocpp_transaction_event = conversions::to_everest_ocpp_transaction_event(transaction_event);
+        this->p_ocpp_generic->publish_ocpp_transaction_event(ocpp_transaction_event);
+    };
+
+    callbacks.transaction_event_response_callback =
+        [this](const ocpp::v201::TransactionEventRequest& transaction_event,
+               const ocpp::v201::TransactionEventResponse& transaction_event_response) {
+            auto ocpp_transaction_event = conversions::to_everest_ocpp_transaction_event(transaction_event);
+            auto ocpp_transaction_event_response =
+                conversions::to_everest_transaction_event_response(transaction_event_response);
+            ocpp_transaction_event_response.original_transaction_event = ocpp_transaction_event;
+            this->p_ocpp_generic->publish_ocpp_transaction_event_response(ocpp_transaction_event_response);
+        };
+
+    callbacks.boot_notification_callback =
+        [this](const ocpp::v201::BootNotificationResponse& boot_notification_response) {
+            const auto everest_boot_notification_response =
+                conversions::to_everest_boot_notification_response(boot_notification_response);
+            this->p_ocpp_generic->publish_boot_notification_response(everest_boot_notification_response);
+        };
+
     if (!this->r_data_transfer.empty()) {
         callbacks.data_transfer_callback = [this](const ocpp::v201::DataTransferRequest& request) {
-            types::ocpp::DataTransferRequest data_transfer_request;
-            data_transfer_request.vendor_id = request.vendorId.get();
-            if (request.messageId.has_value()) {
-                data_transfer_request.message_id = request.messageId.value().get();
-            }
-            data_transfer_request.data = request.data;
+            types::ocpp::DataTransferRequest data_transfer_request =
+                conversions::to_everest_data_transfer_request(request);
             types::ocpp::DataTransferResponse data_transfer_response =
                 this->r_data_transfer.at(0)->call_data_transfer(data_transfer_request);
-            ocpp::v201::DataTransferResponse response;
-            response.status = to_ocpp(data_transfer_response.status);
-            response.data = data_transfer_response.data;
+            ocpp::v201::DataTransferResponse response =
+                conversions::to_ocpp_data_transfer_response(data_transfer_response);
             return response;
         };
     }
 
-    const auto sql_init_path = this->ocpp_share_path / INIT_SQL;
+    const auto sql_init_path = this->ocpp_share_path / SQL_CORE_MIGRTATIONS;
 
-    this->init_evses();
-
-    std::map<int32_t, int32_t> evse_connector_structure;
-    for (const auto [evse_id, evse] : this->evses) {
-        evse_connector_structure[evse_id] = evse.connectors.size();
-    }
-
+    std::map<int32_t, int32_t> evse_connector_structure = this->get_connector_structure();
     this->charge_point = std::make_unique<ocpp::v201::ChargePoint>(
         evse_connector_structure, device_model_database_path, this->ocpp_share_path.string(),
         this->config.CoreDatabasePath, sql_init_path.string(), this->config.MessageLogPath,
         std::make_shared<EvseSecurity>(*this->r_security), callbacks);
+
+    const auto ev_connection_timeout_request_value_response = this->charge_point->request_value<int32_t>(
+        ocpp::v201::Component{"TxCtrlr"}, ocpp::v201::Variable{"EVConnectionTimeOut"},
+        ocpp::v201::AttributeEnum::Actual);
+    if (ev_connection_timeout_request_value_response.status == ocpp::v201::GetVariableStatusEnum::Accepted and
+        ev_connection_timeout_request_value_response.value.has_value()) {
+        this->r_auth->call_set_connection_timeout(ev_connection_timeout_request_value_response.value.value());
+    }
+
+    const auto master_pass_group_id_response = this->charge_point->request_value<std::string>(
+        ocpp::v201::Component{"AuthCtrlr"}, ocpp::v201::Variable{"MasterPassGroupId"},
+        ocpp::v201::AttributeEnum::Actual);
+    if (master_pass_group_id_response.status == ocpp::v201::GetVariableStatusEnum::Accepted and
+        master_pass_group_id_response.value.has_value()) {
+        this->r_auth->call_set_master_pass_group_id(master_pass_group_id_response.value.value());
+    }
 
     if (this->config.EnableExternalWebsocketControl) {
         const std::string connect_topic = "everest_api/ocpp/cmd/connect";
@@ -829,139 +467,73 @@ void OCPP201::ready() {
                              [this](const std::string& data) { this->charge_point->disconnect_websocket(); });
     }
 
+    std::set<TxStartStopPoint> tx_start_points;
+    std::set<TxStartStopPoint> tx_stop_points;
+
+    const auto tx_start_point_request_value_response = this->charge_point->request_value<std::string>(
+        ocpp::v201::Component{"TxCtrlr"}, ocpp::v201::Variable{"TxStartPoint"}, ocpp::v201::AttributeEnum::Actual);
+    if (tx_start_point_request_value_response.status == ocpp::v201::GetVariableStatusEnum::Accepted and
+        tx_start_point_request_value_response.value.has_value()) {
+        auto tx_start_point_csl =
+            tx_start_point_request_value_response.value.value(); // contains comma seperated list of TxStartPoints
+        tx_start_points = get_tx_start_stop_points(tx_start_point_csl);
+        EVLOG_info << "TxStartPoints from device model: " << tx_start_point_csl;
+    }
+
+    if (tx_start_points.empty()) {
+        tx_start_points = {TxStartStopPoint::PowerPathClosed};
+    }
+
+    const auto tx_stop_point_request_value_response = this->charge_point->request_value<std::string>(
+        ocpp::v201::Component{"TxCtrlr"}, ocpp::v201::Variable{"TxStopPoint"}, ocpp::v201::AttributeEnum::Actual);
+    if (tx_stop_point_request_value_response.status == ocpp::v201::GetVariableStatusEnum::Accepted and
+        tx_stop_point_request_value_response.value.has_value()) {
+        auto tx_stop_point_csl =
+            tx_stop_point_request_value_response.value.value(); // contains comma seperated list of TxStartPoints
+        tx_stop_points = get_tx_start_stop_points(tx_stop_point_csl);
+        EVLOG_info << "TxStopPoints from device model: " << tx_stop_point_csl;
+    }
+
+    if (tx_stop_points.empty()) {
+        tx_stop_points = {TxStartStopPoint::EVConnected, TxStartStopPoint::Authorized};
+    }
+
+    this->transaction_handler =
+        std::make_unique<TransactionHandler>(this->r_evse_manager.size(), tx_start_points, tx_stop_points);
+
     int evse_id = 1;
     for (const auto& evse : this->r_evse_manager) {
         evse->subscribe_session_event([this, evse_id](types::evse_manager::SessionEvent session_event) {
-            const auto connector_id = session_event.connector_id.value_or(1);
-            switch (session_event.event) {
-            case types::evse_manager::SessionEventEnum::SessionStarted: {
-                this->session_started_reason = session_event.session_started.value().reason;
-                this->charge_point->on_session_started(evse_id, connector_id);
-                break;
-            }
-            case types::evse_manager::SessionEventEnum::SessionFinished: {
-                this->charge_point->on_session_finished(evse_id, connector_id);
-                break;
-            }
-            case types::evse_manager::SessionEventEnum::TransactionStarted: {
-                const auto transaction_started = session_event.transaction_started.value();
-                const auto timestamp = ocpp::DateTime(transaction_started.timestamp);
-                const auto meter_value =
-                    get_meter_value(transaction_started.meter_value, ocpp::v201::ReadingContextEnum::Transaction_Begin);
-                const auto session_id = session_event.uuid;
-                const auto signed_meter_value = transaction_started.signed_meter_value;
-                const auto reservation_id = transaction_started.reservation_id;
-                const auto remote_start_id = transaction_started.id_tag.request_id;
-
-                ocpp::v201::IdToken id_token;
-                id_token.idToken = transaction_started.id_tag.id_token;
-                if (transaction_started.id_tag.id_token_type.has_value()) {
-                    id_token.type =
-                        ocpp::v201::conversions::string_to_id_token_enum(types::authorization::id_token_type_to_string(
-                            transaction_started.id_tag.id_token_type.value()));
-                } else {
-                    id_token.type = ocpp::v201::IdTokenEnum::Local; // FIXME(piet)
-                }
-
-                // assume cable has been plugged in first and then authorized
-                auto trigger_reason = ocpp::v201::TriggerReasonEnum::Authorized;
-
-                // if session started reason was Authorized, Transaction is started because of EV plug in event
-                if (this->session_started_reason == types::evse_manager::StartSessionReason::Authorized) {
-                    trigger_reason = ocpp::v201::TriggerReasonEnum::CablePluggedIn;
-                }
-
-                if (transaction_started.id_tag.authorization_type == types::authorization::AuthorizationType::OCPP) {
-                    trigger_reason = ocpp::v201::TriggerReasonEnum::RemoteStart;
-                }
-
-                this->charge_point->on_transaction_started(
-                    evse_id, connector_id, session_id, timestamp, trigger_reason, meter_value, id_token, std::nullopt,
-                    reservation_id, remote_start_id,
-                    ocpp::v201::ChargingStateEnum::EVConnected); // FIXME(piet): add proper groupIdToken +
-                                                                 // ChargingStateEnum
-                break;
-            }
-            case types::evse_manager::SessionEventEnum::TransactionFinished: {
-                const auto transaction_finished = session_event.transaction_finished.value();
-                const auto timestamp = ocpp::DateTime(transaction_finished.timestamp);
-                const auto meter_value =
-                    get_meter_value(transaction_finished.meter_value, ocpp::v201::ReadingContextEnum::Transaction_End);
-                ocpp::v201::ReasonEnum reason = ocpp::v201::ReasonEnum::Other;
-
-                if (transaction_finished.reason.has_value()) {
-                    reason = get_reason(transaction_finished.reason.value());
-                }
-
-                const auto signed_meter_value = transaction_finished.signed_meter_value;
-                const auto id_token = transaction_finished.id_tag;
-
-                this->charge_point->on_transaction_finished(evse_id, timestamp, meter_value, reason, id_token,
-                                                            signed_meter_value,
-                                                            ocpp::v201::ChargingStateEnum::EVConnected);
-                break;
-            }
-            case types::evse_manager::SessionEventEnum::ChargingStarted: {
-                this->charge_point->on_charging_state_changed(evse_id, ocpp::v201::ChargingStateEnum::Charging);
-                break;
-            }
-            case types::evse_manager::SessionEventEnum::ChargingResumed: {
-                this->charge_point->on_charging_state_changed(evse_id, ocpp::v201::ChargingStateEnum::Charging);
-                break;
-            }
-            case types::evse_manager::SessionEventEnum::ChargingPausedEV: {
-                this->charge_point->on_charging_state_changed(evse_id, ocpp::v201::ChargingStateEnum::SuspendedEV);
-                break;
-            }
-            case types::evse_manager::SessionEventEnum::ChargingPausedEVSE: {
-                this->charge_point->on_charging_state_changed(evse_id, ocpp::v201::ChargingStateEnum::SuspendedEVSE);
-                break;
-            }
-            case types::evse_manager::SessionEventEnum::Disabled: {
-                if (session_event.connector_id.has_value()) {
-                    this->charge_point->on_unavailable(evse_id, connector_id);
-                } else {
-                    for (size_t index = 1; index <= this->evses.at(evse_id).connectors.size(); index++) {
-                        this->charge_point->on_unavailable(evse_id, index);
-                    }
-                }
-                break;
-            }
-            case types::evse_manager::SessionEventEnum::Enabled: {
-                if (session_event.connector_id.has_value()) {
-                    if (this->evses.at(evse_id).operational_state == ocpp::v201::OperationalStatusEnum::Operative) {
-                        this->charge_point->on_operative(evse_id, connector_id);
-                    }
-                } else {
-                    for (size_t index = 1; index <= this->evses.at(evse_id).connectors.size(); index++) {
-                        if (this->evses.at(evse_id).connectors.at(index) ==
-                            ocpp::v201::OperationalStatusEnum::Operative) {
-                            this->charge_point->on_operative(evse_id, index);
-                        }
-                    }
-                }
-                break;
-            }
-            }
+            this->process_session_event(evse_id, session_event);
         });
 
         evse->subscribe_powermeter([this, evse_id](const types::powermeter::Powermeter& power_meter) {
-            const auto meter_value = get_meter_value(power_meter, ocpp::v201::ReadingContextEnum::Sample_Periodic);
+            auto meter_value = conversions::to_ocpp_meter_value(
+                power_meter, ocpp::v201::ReadingContextEnum::Sample_Periodic, power_meter.signed_meter_value);
+            if (this->evse_soc_map[evse_id].has_value()) {
+                auto sampled_soc_value = conversions::to_ocpp_sampled_value(
+                    ocpp::v201::ReadingContextEnum::Sample_Periodic, ocpp::v201::MeasurandEnum::SoC, "Percent",
+                    std::nullopt, ocpp::v201::LocationEnum::EV);
+                sampled_soc_value.value = this->evse_soc_map[evse_id].value();
+                meter_value.sampledValue.push_back(sampled_soc_value);
+            }
             this->charge_point->on_meter_value(evse_id, meter_value);
+        });
+
+        evse->subscribe_ev_info([this, evse_id](const types::evse_manager::EVInfo& ev_info) {
+            if (ev_info.soc.has_value()) {
+                this->evse_soc_map[evse_id] = ev_info.soc.value();
+            }
         });
 
         evse->subscribe_iso15118_certificate_request(
             [this, evse_id](const types::iso15118_charger::Request_Exi_Stream_Schema& certificate_request) {
-                // transform request forward to libocpp
-                ocpp::v201::Get15118EVCertificateRequest ocpp_request;
-                ocpp_request.exiRequest = certificate_request.exiRequest;
-                ocpp_request.iso15118SchemaVersion = certificate_request.iso15118SchemaVersion;
-                ocpp_request.action = get_certificate_action(certificate_request.certificateAction);
-
-                auto ocpp_response = this->charge_point->on_get_15118_ev_certificate_request(ocpp_request);
+                auto ocpp_response = this->charge_point->on_get_15118_ev_certificate_request(
+                    conversions::to_ocpp_get_15118_certificate_request(certificate_request));
                 EVLOG_debug << "Received response from get_15118_ev_certificate_request: " << ocpp_response;
                 // transform response, inject action, send to associated EvseManager
-                const auto everest_response_status = get_iso15118_charger_status(ocpp_response.status);
+                const auto everest_response_status =
+                    conversions::to_everest_iso15118_charger_status(ocpp_response.status);
                 const types::iso15118_charger::Response_Exi_Stream_Status everest_response{
                     everest_response_status, certificate_request.certificateAction, ocpp_response.exiResponse};
                 this->r_evse_manager.at(evse_id - 1)->call_set_get_certificate_response(everest_response);
@@ -971,11 +543,11 @@ void OCPP201::ready() {
     }
     r_system->subscribe_firmware_update_status([this](const types::system::FirmwareUpdateStatus status) {
         this->charge_point->on_firmware_update_status_notification(
-            status.request_id, get_firmware_status_notification(status.firmware_update_status));
+            status.request_id, conversions::to_ocpp_firmware_status_enum(status.firmware_update_status));
     });
 
     r_system->subscribe_log_status([this](types::system::LogStatus status) {
-        this->charge_point->on_log_status_notification(get_upload_log_status_enum(status.log_status),
+        this->charge_point->on_log_status_notification(conversions::to_ocpp_upload_logs_status_enum(status.log_status),
                                                        status.request_id);
     });
 
@@ -983,22 +555,342 @@ void OCPP201::ready() {
     while (!this->all_evse_ready()) {
         this->evse_ready_cv.wait(lk);
     }
+    // In case (for some reason) EvseManager ready signals are sent after this point, this will prevent a hang
+    lk.unlock();
 
-    // align state machine based on operational status
-    for (const auto& [evse_id, evse] : this->evses) {
-        if (evse.operational_state == ocpp::v201::OperationalStatusEnum::Inoperative or
-            this->cs_operational_status == ocpp::v201::OperationalStatusEnum::Inoperative) {
-            this->r_evse_manager.at(evse_id - 1)->call_disable(0);
-        }
-        for (const auto [connector_id, operational_state] : evse.connectors) {
-            if (operational_state == ocpp::v201::OperationalStatusEnum::Inoperative) {
-                this->r_evse_manager.at(evse_id - 1)->call_disable(connector_id);
-            }
-        }
+    const auto boot_reason = conversions::to_ocpp_boot_reason(this->r_system->call_get_boot_reason());
+    this->charge_point->set_message_queue_resume_delay(std::chrono::seconds(this->config.MessageQueueResumeDelay));
+    this->charge_point->start(boot_reason);
+}
+
+void OCPP201::process_session_event(const int32_t evse_id, const types::evse_manager::SessionEvent& session_event) {
+    const auto connector_id = session_event.connector_id.value_or(1);
+    switch (session_event.event) {
+    case types::evse_manager::SessionEventEnum::SessionStarted: {
+        this->process_session_started(evse_id, connector_id, session_event);
+        break;
+    }
+    case types::evse_manager::SessionEventEnum::SessionFinished: {
+        this->process_session_finished(evse_id, connector_id, session_event);
+        break;
+    }
+    case types::evse_manager::SessionEventEnum::TransactionStarted: {
+        this->process_transaction_started(evse_id, connector_id, session_event);
+        break;
+    }
+    case types::evse_manager::SessionEventEnum::TransactionFinished: {
+        this->process_transaction_finished(evse_id, connector_id, session_event);
+        break;
+    }
+    case types::evse_manager::SessionEventEnum::ChargingStarted: {
+        this->process_charging_started(evse_id, connector_id, session_event);
+        break;
+    }
+    case types::evse_manager::SessionEventEnum::ChargingResumed: {
+        this->process_charging_resumed(evse_id, connector_id, session_event);
+        break;
+    }
+    case types::evse_manager::SessionEventEnum::ChargingPausedEV: {
+        this->process_charging_paused_ev(evse_id, connector_id, session_event);
+        break;
+    }
+    case types::evse_manager::SessionEventEnum::ChargingPausedEVSE: {
+        this->process_charging_paused_evse(evse_id, connector_id, session_event);
+        break;
+    }
+    case types::evse_manager::SessionEventEnum::Disabled: {
+        this->process_disabled(evse_id, connector_id, session_event);
+        break;
+    }
+    case types::evse_manager::SessionEventEnum::Enabled: {
+        this->process_enabled(evse_id, connector_id, session_event);
+        break;
+    }
+    case types::evse_manager::SessionEventEnum::Authorized: {
+        this->process_authorized(evse_id, connector_id, session_event);
+        break;
+    }
+    case types::evse_manager::SessionEventEnum::Deauthorized: {
+        this->process_deauthorized(evse_id, connector_id, session_event);
+        break;
+    }
     }
 
-    const auto boot_reason = get_boot_reason(this->r_system->call_get_boot_reason());
-    this->charge_point->start(boot_reason);
+    // process authorized event which will inititate a TransactionEvent(Updated) message in case the token has not yet
+    // been authorized by the CSMS
+    const auto authorized_id_token = get_authorized_id_token(session_event);
+    if (authorized_id_token.has_value()) {
+        this->charge_point->on_authorized(evse_id, connector_id, authorized_id_token.value());
+    }
+}
+
+void OCPP201::process_tx_event_effect(const int32_t evse_id, const TxEventEffect tx_event_effect,
+                                      const types::evse_manager::SessionEvent& session_event) {
+    if (tx_event_effect == TxEventEffect::NONE) {
+        return;
+    }
+
+    const auto transaction_data = this->transaction_handler->get_transaction_data(evse_id);
+    if (transaction_data == nullptr) {
+        throw std::runtime_error("Could not start transaction because no tranasaction data is present");
+    }
+    transaction_data->timestamp = ocpp::DateTime(session_event.timestamp);
+
+    if (tx_event_effect == TxEventEffect::START_TRANSACTION) {
+        transaction_data->started = true;
+        transaction_data->meter_value = conversions::to_ocpp_meter_value(
+            get_meter_value(session_event), ocpp::v201::ReadingContextEnum::Transaction_Begin,
+            get_signed_meter_value(session_event));
+        this->charge_point->on_transaction_started(
+            evse_id, transaction_data->connector_id, transaction_data->session_id, transaction_data->timestamp,
+            transaction_data->trigger_reason, transaction_data->meter_value, transaction_data->id_token,
+            transaction_data->group_id_token, transaction_data->reservation_id, transaction_data->remote_start_id,
+            transaction_data->charging_state);
+    } else if (tx_event_effect == TxEventEffect::STOP_TRANSACTION) {
+        transaction_data->meter_value = conversions::to_ocpp_meter_value(
+            get_meter_value(session_event), ocpp::v201::ReadingContextEnum::Transaction_End,
+            get_signed_meter_value(session_event));
+        this->charge_point->on_transaction_finished(evse_id, transaction_data->timestamp, transaction_data->meter_value,
+                                                    transaction_data->stop_reason, transaction_data->id_token,
+                                                    std::nullopt, transaction_data->charging_state);
+        this->transaction_handler->reset_transaction_data(evse_id);
+    }
+}
+
+void OCPP201::process_session_started(const int32_t evse_id, const int32_t connector_id,
+                                      const types::evse_manager::SessionEvent& session_event) {
+    if (!session_event.session_started.has_value()) {
+        throw std::runtime_error("SessionEvent SessionStarted does not contain session_started context");
+    }
+
+    const auto session_started = session_event.session_started.value();
+
+    std::optional<ocpp::v201::IdToken> id_token = std::nullopt;
+    std::optional<ocpp::v201::IdToken> group_id_token = std::nullopt;
+    std::optional<int32_t> remote_start_id = std::nullopt;
+    auto charging_state = ocpp::v201::ChargingStateEnum::Idle;
+    auto trigger_reason = ocpp::v201::TriggerReasonEnum::Authorized;
+    auto tx_event = TxEvent::AUTHORIZED;
+    if (session_started.reason == types::evse_manager::StartSessionReason::EVConnected) {
+        tx_event = TxEvent::EV_CONNECTED;
+        trigger_reason = ocpp::v201::TriggerReasonEnum::CablePluggedIn;
+        charging_state = ocpp::v201::ChargingStateEnum::EVConnected;
+    } else if (!session_started.id_tag.has_value()) {
+        EVLOG_warning << "Session started with reason Authorized, but no id_tag provided as part of the "
+                         "session event";
+    } else {
+        id_token = conversions::to_ocpp_id_token(session_started.id_tag.value().id_token);
+        remote_start_id = session_started.id_tag.value().request_id;
+        if (session_started.id_tag.value().parent_id_token.has_value()) {
+            group_id_token = conversions::to_ocpp_id_token(session_started.id_tag.value().parent_id_token.value());
+        }
+        if (session_started.id_tag.value().authorization_type == types::authorization::AuthorizationType::OCPP) {
+            trigger_reason = ocpp::v201::TriggerReasonEnum::RemoteStart;
+        }
+    }
+    const auto timestamp = ocpp::DateTime(session_event.timestamp);
+    const auto reservation_id = session_started.reservation_id;
+
+    // this is always the first transaction related interaction, so we create TransactionData here
+    auto transaction_data =
+        std::make_shared<TransactionData>(connector_id, session_event.uuid, timestamp, trigger_reason, charging_state);
+    transaction_data->id_token = id_token;
+    transaction_data->group_id_token = group_id_token;
+    transaction_data->remote_start_id = remote_start_id;
+    transaction_data->reservation_id = reservation_id;
+    this->transaction_handler->add_transaction_data(evse_id, transaction_data);
+
+    const auto tx_event_effect = this->transaction_handler->submit_event(evse_id, tx_event);
+    this->process_tx_event_effect(evse_id, tx_event_effect, session_event);
+    if (session_started.reason == types::evse_manager::StartSessionReason::EVConnected) {
+        this->charge_point->on_session_started(evse_id, connector_id);
+    }
+}
+
+void OCPP201::process_session_finished(const int32_t evse_id, const int32_t connector_id,
+                                       const types::evse_manager::SessionEvent& session_event) {
+    this->evse_soc_map[evse_id].reset();
+    auto transaction_data = this->transaction_handler->get_transaction_data(evse_id);
+    if (transaction_data != nullptr) {
+        transaction_data->charging_state = ocpp::v201::ChargingStateEnum::Idle;
+        transaction_data->stop_reason = ocpp::v201::ReasonEnum::EVDisconnected;
+    }
+    const auto tx_event_effect = this->transaction_handler->submit_event(evse_id, TxEvent::EV_DISCONNECTED);
+    this->process_tx_event_effect(evse_id, tx_event_effect, session_event);
+    this->charge_point->on_session_finished(evse_id, connector_id);
+}
+
+void OCPP201::process_transaction_started(const int32_t evse_id, const int32_t connector_id,
+                                          const types::evse_manager::SessionEvent& session_event) {
+    if (!session_event.transaction_started.has_value()) {
+        throw std::runtime_error("SessionEvent TransactionStarted does not contain session_started context");
+    }
+
+    auto transaction_data = this->transaction_handler->get_transaction_data(evse_id);
+    if (transaction_data == nullptr) {
+        EVLOG_warning << "Could not update transaction data because no tranasaction data is present. This might happen "
+                         "in case a TxStopPoint is already active when a TransactionStarted event occurs (e.g. "
+                         "TxStopPoint is EnergyTransfer or ParkingBayOccupied)";
+        this->charge_point->on_session_started(evse_id, connector_id);
+        auto tx_event_effect = this->transaction_handler->submit_event(evse_id, TxEvent::AUTHORIZED);
+        this->process_tx_event_effect(evse_id, tx_event_effect, session_event);
+        tx_event_effect = this->transaction_handler->submit_event(evse_id, TxEvent::EV_CONNECTED);
+        this->process_tx_event_effect(evse_id, tx_event_effect, session_event);
+        return;
+    }
+
+    // at this point we dont know if the TransactionStarted event was triggered because of an Authorization or EV Plug
+    // in event. We assume cable has been plugged in first and then authorized and update if other order was applied
+    auto tx_event = TxEvent::AUTHORIZED;
+    auto trigger_reason = ocpp::v201::TriggerReasonEnum::Authorized;
+    const auto transaction_started = session_event.transaction_started.value();
+    transaction_data->reservation_id = transaction_started.reservation_id;
+    transaction_data->remote_start_id = transaction_started.id_tag.request_id;
+    const auto id_token = conversions::to_ocpp_id_token(transaction_started.id_tag.id_token);
+    transaction_data->id_token = id_token;
+
+    std::optional<ocpp::v201::IdToken> group_id_token = std::nullopt;
+    if (transaction_started.id_tag.parent_id_token.has_value()) {
+        transaction_data->group_id_token =
+            conversions::to_ocpp_id_token(transaction_started.id_tag.parent_id_token.value());
+    }
+
+    // if session started reason was Authorized, Transaction is started because of EV plug in event
+    if (transaction_data->trigger_reason == ocpp::v201::TriggerReasonEnum::Authorized or
+        transaction_data->trigger_reason == ocpp::v201::TriggerReasonEnum::RemoteStart) {
+        trigger_reason = ocpp::v201::TriggerReasonEnum::CablePluggedIn;
+        transaction_data->charging_state = ocpp::v201::ChargingStateEnum::EVConnected;
+        this->charge_point->on_session_started(evse_id, connector_id);
+        tx_event = TxEvent::EV_CONNECTED;
+    }
+
+    if (transaction_started.id_tag.authorization_type == types::authorization::AuthorizationType::OCPP) {
+        trigger_reason = ocpp::v201::TriggerReasonEnum::RemoteStart;
+    }
+
+    transaction_data->trigger_reason = trigger_reason;
+    const auto tx_event_effect = this->transaction_handler->submit_event(evse_id, tx_event);
+    this->process_tx_event_effect(evse_id, tx_event_effect, session_event);
+}
+
+void OCPP201::process_transaction_finished(const int32_t evse_id, const int32_t connector_id,
+                                           const types::evse_manager::SessionEvent& session_event) {
+    if (!session_event.transaction_finished.has_value()) {
+        throw std::runtime_error("SessionEvent TransactionFinished does not contain session_started context");
+    }
+    const auto transaction_finished = session_event.transaction_finished.value();
+    auto tx_event = TxEvent::NONE;
+    auto reason = ocpp::v201::ReasonEnum::Other;
+    if (transaction_finished.reason.has_value()) {
+        reason = conversions::to_ocpp_reason(transaction_finished.reason.value());
+        tx_event = get_tx_event(reason);
+    }
+    auto transaction_data = this->transaction_handler->get_transaction_data(evse_id);
+    if (transaction_data != nullptr) {
+        std::optional<ocpp::v201::IdToken> id_token = std::nullopt;
+        if (transaction_finished.id_tag.has_value()) {
+            id_token = conversions::to_ocpp_id_token(transaction_finished.id_tag.value().id_token);
+        }
+
+        // this is required to report the correct charging_state within a TransactionEvent(Ended) message
+        auto charging_state = transaction_data->charging_state;
+        if (reason == ocpp::v201::ReasonEnum::EVDisconnected) {
+            charging_state = ocpp::v201::ChargingStateEnum::Idle;
+        } else if (tx_event == TxEvent::DEAUTHORIZED) {
+            charging_state = ocpp::v201::ChargingStateEnum::EVConnected;
+        }
+        transaction_data->stop_reason = reason;
+        transaction_data->id_token = id_token;
+        transaction_data->charging_state = charging_state;
+    }
+    const auto tx_event_effect = this->transaction_handler->submit_event(evse_id, tx_event);
+    this->process_tx_event_effect(evse_id, tx_event_effect, session_event);
+
+    if (tx_event == TxEvent::DEAUTHORIZED) {
+        if (reason == ocpp::v201::ReasonEnum::Remote) {
+            this->charge_point->on_charging_state_changed(evse_id, ocpp::v201::ChargingStateEnum::EVConnected,
+                                                          ocpp::v201::TriggerReasonEnum::RemoteStop);
+        } else {
+            this->charge_point->on_charging_state_changed(evse_id, ocpp::v201::ChargingStateEnum::EVConnected,
+                                                          ocpp::v201::TriggerReasonEnum::StopAuthorized);
+        }
+    }
+}
+
+void OCPP201::process_charging_started(const int32_t evse_id, const int32_t connector_id,
+                                       const types::evse_manager::SessionEvent& session_event) {
+    auto transaction_data = this->transaction_handler->get_transaction_data(evse_id);
+    if (transaction_data != nullptr) {
+        transaction_data->trigger_reason = ocpp::v201::TriggerReasonEnum::ChargingStateChanged;
+        transaction_data->charging_state = ocpp::v201::ChargingStateEnum::Charging;
+    }
+    const auto tx_event_effect = this->transaction_handler->submit_event(evse_id, TxEvent::ENERGY_TRANSFER_STARTED);
+    this->process_tx_event_effect(evse_id, tx_event_effect, session_event);
+    this->charge_point->on_charging_state_changed(evse_id, ocpp::v201::ChargingStateEnum::Charging);
+}
+
+void OCPP201::process_charging_resumed(const int32_t evse_id, const int32_t connector_id,
+                                       const types::evse_manager::SessionEvent& session_event) {
+    auto transaction_data = this->transaction_handler->get_transaction_data(evse_id);
+    if (transaction_data != nullptr) {
+        transaction_data->charging_state = ocpp::v201::ChargingStateEnum::Charging;
+    }
+    this->charge_point->on_charging_state_changed(evse_id, ocpp::v201::ChargingStateEnum::Charging);
+}
+
+void OCPP201::process_charging_paused_ev(const int32_t evse_id, const int32_t connector_id,
+                                         const types::evse_manager::SessionEvent& session_event) {
+    auto transaction_data = this->transaction_handler->get_transaction_data(evse_id);
+    if (transaction_data != nullptr) {
+        transaction_data->charging_state = ocpp::v201::ChargingStateEnum::SuspendedEV;
+        transaction_data->trigger_reason = ocpp::v201::TriggerReasonEnum::ChargingStateChanged;
+        transaction_data->stop_reason = ocpp::v201::ReasonEnum::StoppedByEV;
+    }
+    const auto tx_event_effect = this->transaction_handler->submit_event(evse_id, TxEvent::ENERGY_TRANSFER_STOPPED);
+    this->process_tx_event_effect(evse_id, tx_event_effect, session_event);
+    this->charge_point->on_charging_state_changed(evse_id, ocpp::v201::ChargingStateEnum::SuspendedEV);
+}
+
+void OCPP201::process_charging_paused_evse(const int32_t evse_id, const int32_t connector_id,
+                                           const types::evse_manager::SessionEvent& session_event) {
+    auto transaction_data = this->transaction_handler->get_transaction_data(evse_id);
+    auto trigger_reason = ocpp::v201::TriggerReasonEnum::ChargingStateChanged;
+    if (transaction_data != nullptr) {
+        transaction_data->charging_state = ocpp::v201::ChargingStateEnum::SuspendedEVSE;
+        if (transaction_data->stop_reason == ocpp::v201::ReasonEnum::Remote) {
+            trigger_reason = ocpp::v201::TriggerReasonEnum::RemoteStop;
+            transaction_data->trigger_reason = ocpp::v201::TriggerReasonEnum::ChargingStateChanged;
+        }
+    }
+    const auto tx_event_effect = this->transaction_handler->submit_event(evse_id, TxEvent::ENERGY_TRANSFER_STOPPED);
+    this->process_tx_event_effect(evse_id, tx_event_effect, session_event);
+    this->charge_point->on_charging_state_changed(evse_id, ocpp::v201::ChargingStateEnum::SuspendedEVSE,
+                                                  trigger_reason);
+}
+
+void OCPP201::process_enabled(const int32_t evse_id, const int32_t connector_id,
+                              const types::evse_manager::SessionEvent& session_event) {
+    this->charge_point->on_enabled(evse_id, connector_id);
+}
+
+void OCPP201::process_disabled(const int32_t evse_id, const int32_t connector_id,
+                               const types::evse_manager::SessionEvent& session_event) {
+    this->charge_point->on_unavailable(evse_id, connector_id);
+}
+
+void OCPP201::process_authorized(const int32_t evse_id, const int32_t connector_id,
+                                 const types::evse_manager::SessionEvent& session_event) {
+    // currently handled as part of SessionStarted and TransactionStarted events
+}
+
+void OCPP201::process_deauthorized(const int32_t evse_id, const int32_t connector_id,
+                                   const types::evse_manager::SessionEvent& session_event) {
+    auto transaction_data = this->transaction_handler->get_transaction_data(evse_id);
+    if (transaction_data != nullptr) {
+        transaction_data->trigger_reason = ocpp::v201::TriggerReasonEnum::StopAuthorized;
+    }
+    const auto tx_event_effect = this->transaction_handler->submit_event(evse_id, TxEvent::DEAUTHORIZED);
+    this->process_tx_event_effect(evse_id, tx_event_effect, session_event);
 }
 
 } // namespace module

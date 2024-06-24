@@ -1,5 +1,5 @@
-
-add_executable(auth_tests auth_tests.cpp)
+set(TEST_TARGET_NAME ${PROJECT_NAME}_auth_tests)
+add_executable(${TEST_TARGET_NAME} auth_tests.cpp)
 
 set(INCLUDE_DIR 
     "${PROJECT_SOURCE_DIR}/modules/Auth/include"
@@ -7,18 +7,14 @@ set(INCLUDE_DIR
 
 get_target_property(GENERATED_INCLUDE_DIR generate_cpp_files EVEREST_GENERATED_INCLUDE_DIR)
 
-target_include_directories(auth_tests PUBLIC 
-    ${GTEST_INCLUDE_DIRS}
+target_include_directories(${TEST_TARGET_NAME} PUBLIC
     ${INCLUDE_DIR}
     ${GENERATED_INCLUDE_DIR}
 )
 
-find_package(GTest REQUIRED)
-
-target_link_libraries(auth_tests PRIVATE
-    ${GTEST_LIBRARIES} 
-    ${GTEST_MAIN_LIBRARIES} 
+target_link_libraries(${TEST_TARGET_NAME} PRIVATE
     GTest::gmock
+    GTest::gtest_main
     everest::timer
     ${CMAKE_DL_LIBS}
     everest::log
@@ -30,4 +26,4 @@ target_link_libraries(auth_tests PRIVATE
     date::date-tz
     )
 
-add_test(auth_tests auth_tests)
+add_test(${TEST_TARGET_NAME} ${TEST_TARGET_NAME})

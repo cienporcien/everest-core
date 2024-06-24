@@ -13,8 +13,9 @@ types:
         type: string
         $ref: /evse_manager#/StopTransactionReason
       id_tag:
-        description: Id tag that was used to stop the transaction.
-        type: string
+        description: Id tag that was used to stop the transaction. Only present if transaction was stopped locally.
+        type: object
+        $ref: /authorization#/ProvidedIdToken
   StopTransactionReason:
     description: >-
       Reason for stopping transaction
@@ -87,6 +88,8 @@ types:
   SessionEventEnum:
     description: >-
       Session Event enum
+        Authorized: Signaled when the EVSE is authorized for charging
+        Deauthorized: Signaled when the EVSE is not authorized for charging (anymore)
         Enabled: Signaled when the EVSE is enabled (e.g. after an enable command)
         Disabled: Signaled when the EVSE is disabled (e.g. after a disable command)
         SessionStarted: Signaled when a session has been started. A session has been started either when an EV is plugged in or the user has been authorized to start a transaction (e.g. after an authorize command)
@@ -111,6 +114,8 @@ types:
         PluginTimeout: Signaled when an EV has been Plugged in but no authorization is present within specified ConnectionTimeout
     type: string
     enum:
+      - Authorized
+      - Deauthorized
       - Enabled
       - Disabled
       - SessionStarted
@@ -127,8 +132,10 @@ types:
       - TransactionFinished
       - SessionFinished
       - Error
+      - ErrorCleared
       - AllErrorsCleared
       - PermanentFault
+      - PermanentFaultCleared
       - ReservationStart
       - ReservationEnd
       - ReplugStarted
@@ -139,17 +146,28 @@ types:
     type: object
     additionalProperties: false
     required:
-      - timestamp
       - reason
+      - meter_value
     properties:
-      timestamp:
-        description: Session start time in RFC3339 format
-        type: string
-        format: date-time
       reason:
         description: Reason for session start
         type: string
         $ref: /evse_manager#/StartSessionReason
+      id_tag:
+        description: The id tag assigned to this session
+        type: object
+        $ref: /authorization#/ProvidedIdToken
+      meter_value:
+        description: Exported meter value
+        type: object
+        $ref: /powermeter#/Powermeter
+      signed_meter_value:
+        description: The signed meter value report of the started session
+        type: object
+        $ref: /units_signed#/SignedMeterValue
+      reservation_id:
+        description: Id of the reservation
+        type: integer
       logging_path:
         description: >-
           File system path where additional log files are stored, such as
@@ -157,30 +175,37 @@ types:
           Filenames should start with "incomplete-" when they are not finished yet,
           this allows other process to wait for the completion after the SessionFinished event.
         type: string
+  SessionFinished:
+    description: Data for the SessionFinished event
+    type: object
+    additionalProperties: false
+    required:
+      - meter_value
+    properties:
+      meter_value:
+        description: Exported meter value
+        type: object
+        $ref: /powermeter#/Powermeter
   TransactionStarted:
     description: Data for the TransactionStarted event
     type: object
     additionalProperties: false
     required:
-      - timestamp
-      - meter_value
       - id_tag
+      - meter_value
     properties:
-      timestamp:
-        description: Transaction start time in RFC3339 format
-        type: string
-        format: date-time
       id_tag:
         description: The id tag assigned to this transaction
         type: object
         $ref: /authorization#/ProvidedIdToken
       meter_value:
-        description: Transaction start exported meter value
+        description: Exported meter value
         type: object
         $ref: /powermeter#/Powermeter
       signed_meter_value:
-        description: Signed meter value
-        type: string
+        description: The signed meter value report of the started transaction
+        type: object
+        $ref: /units_signed#/SignedMeterValue
       reservation_id:
         description: Id of the reservation
         type: integer
@@ -189,71 +214,89 @@ types:
     type: object
     additionalProperties: false
     required:
-      - timestamp
       - meter_value
     properties:
-      timestamp:
-        description: Transaction end time in RFC3339 format
-        type: string
-        format: date-time
       meter_value:
         description: Transaction finished meter value
         type: object
         $ref: /powermeter#/Powermeter
+      start_signed_meter_value:
+        description: The starting signed meter value report of the stopped transaction. If not included in the `signed_meter_value` object, it must be included here.
+        type: object
+        $ref: /units_signed#/SignedMeterValue
       signed_meter_value:
-        description: Signed meter value
-        type: string
+        description: The signed meter value report of the stopped transaction
+        type: object
+        $ref: /units_signed#/SignedMeterValue
       reason:
         description: Reason for stopping transaction
         type: string
         $ref: /evse_manager#/StopTransactionReason
       id_tag:
-        description: Id tag that was used to stop the transaction
-        type: string
+        description: Id tag that was used to stop the transaction. Only present if transaction was stopped locally.
+        type: object
+        $ref: /authorization#/ProvidedIdToken
+  ChargingStateChangedEvent:
+    description: Context for ChargingStateChanged event
+    type: object
+    additionalProperties: false
+    required:
+      - meter_value
+    properties:
+      meter_value:
+        description: Exported meter value
+        type: object
+        $ref: /powermeter#/Powermeter
+  AuthorizationEvent:
+    description: Context for authorization event (Authorized or Deauthorized)
+    type: object
+    additionalProperties: false
+    required:
+      - meter_value
+    properties:
+      meter_value:
+        description: Exported meter value
+        type: object
+        $ref: /powermeter#/Powermeter
   ErrorEnum:
     description: >-
-      Details on error type
-        Car: Signals a car error
-        CarDiodeFault: Signals a car diode fault
-        Relais: Signals a relais error
-        RCD: Signals an RCD error (AC)
-        RCDDC: Signal an RCD error (DC)
-        VentilationNotAvailable: Signals that ventilation is not available
-        OverCurrent: Signals an overcurrent error
-        OverVoltage: Signals on overvoltage error
-        UnderVoltage: Signals on overvoltage error
-        Internal: Signals an internal error
-        SLAC: Signals a SLAC communication error
-        HLC: Signals a HLC error
-        MotorLock: Signals an error with the motor lock of the connector
-        OverTemperature: Signals an over temperature error
-        BrownOut: Brown out detected in electronics
-        CablePP: PP resistor value in cable is out of range
-        EnergyManagement: An error from the energy management was reported
-        NeutralPEN: Nutral/PEN fault
-        CpDriver: The CP output driver has a fault
+      Note this is only kept for compatibility with the legacy error handling and will be removed soon.
     type: string
     enum:
-      - Car
-      - CarDiodeFault
-      - Relais
-      - RCD
-      - RCDDC
+      - RCD_Selftest
+      - RCD_DC
+      - RCD_AC
+      - VendorError
+      - VendorWarning
+      - ConnectorLockCapNotCharged
+      - ConnectorLockUnexpectedOpen
+      - ConnectorLockUnexpectedClose
+      - ConnectorLockFailedLock
+      - ConnectorLockFailedUnlock
+      - MREC1ConnectorLockFailure
+      - MREC2GroundFailure
+      - MREC3HighTemperature
+      - MREC4OverCurrentFailure
+      - MREC5OverVoltage
+      - MREC6UnderVoltage
+      - MREC8EmergencyStop
+      - MREC10InvalidVehicleMode
+      - MREC14PilotFault
+      - MREC15PowerLoss
+      - MREC17EVSEContactorFault
+      - MREC18CableOverTempDerate
+      - MREC19CableOverTempStop
+      - MREC20PartialInsertion
+      - MREC23ProximityFault
+      - MREC24ConnectorVoltageHigh
+      - MREC25BrokenLatch
+      - MREC26CutCable
+      - DiodeFault
       - VentilationNotAvailable
-      - OverCurrent
-      - OverVoltage
-      - UnderVoltage
-      - Internal
-      - SLAC
-      - HLC
-      - Other
-      - MotorLock
-      - OverTemperature
       - BrownOut
-      - CablePP
       - EnergyManagement
-      - NeutralPEN
-      - CpDriver
+      - PermanentFault
+      - PowermeterTransactionStartFailed
   Error:
     description: >-
       Error object that contains information about the error and optional vendor error information
@@ -261,14 +304,59 @@ types:
     additionalProperties: false
     required:
       - error_code
+      - error_description
+      - error_severity
     properties:
       error_code:
         description: The error enum
         type: string
         $ref: /evse_manager#/ErrorEnum
+      error_description:
+        description: Description of the error (human readable)
+        type: string
+      error_severity:
+        description: Severity of the error
+        type: string
+        enum:
+          - High
+          - Medium
+          - Low
       vendor_error:
         description: The error code of the vendor
         type: string
+  EnableDisableSource:
+    description: >-
+      Source of a Enable or Disable command/event
+    type: object
+    required:
+      - enable_source
+      - enable_state
+      - enable_priority
+    properties:
+      enable_source:
+        description: Specifies the source
+        type: string
+        enum:
+        - Unspecified
+        - LocalAPI
+        - LocalKeyLock
+        - ServiceTechnician
+        - RemoteKeyLock
+        - MobileApp
+        - FirmwareUpdate
+        - CSMS
+      enable_state:
+        description: Specifies the state for this entry
+        type: string
+        enum:
+        - Unassigned
+        - Disable
+        - Enable
+      enable_priority:
+        description: Priority of this entry. The highest priority is 0.
+        type: integer
+        minimum: 0
+        maximum: 10000
   SessionEvent:
     description: Emits all events related to sessions
     type: object
@@ -276,15 +364,20 @@ types:
     required:
       - uuid
       - event
+      - timestamp
     properties:
       uuid:
         description: >-
           An EVSE generated UUID for this session, can be used e.g. for
           database storage.
         type: string
+      timestamp:
+        description: Session start time in RFC3339 format
+        type: string
+        format: date-time
       connector_id:
         description: >-
-          Id of the connector of this EVSE. 
+          Id of the connector of this EVSE.
           If the connector_id is not specified, its assumed to be 1
         type: integer
       event:
@@ -297,6 +390,10 @@ types:
         description: data for SessionStarted event
         type: object
         $ref: /evse_manager#/SessionStarted
+      session_finished:
+        description: data for the SessionFinished event
+        type: object
+        $ref: /evse_manager#/SessionFinished
       transaction_started:
         description: data for TransactionStarted event
         type: object
@@ -307,10 +404,27 @@ types:
           out
         type: object
         $ref: /evse_manager#/TransactionFinished
+      charging_state_changed_event:
+        description: >-
+          Data for ChargingStateChangedEvent. Shall be set for the following SessionEventEnums:
+          ChargingStarted, ChargingResumed, ChargingPausedEV, Charging
+        type: object
+        $ref: /evse_manager#/ChargingStateChangedEvent
+      authorization_event:
+        description: >-
+          Data for Authorization event. Shall be set for the following SessionEventEnums:
+          Authorized, Deauthorized
+        type: object
+        $ref: /evse_manager#/AuthorizationEvent
       error:
         description: Details on error type
         type: object
         $ref: /evse_manager#/Error
+      source:
+        description: >-
+          Additional data for Enabled/Disabled events. Specifies the source of the command that changed the state.
+        type: object
+        $ref: /evse_manager#/EnableDisableSource
   Limits:
     description: Limits of this EVSE
     type: object

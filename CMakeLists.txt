@@ -1,12 +1,12 @@
 cmake_minimum_required(VERSION 3.14.7)
 
 project(everest-core
-    VERSION 2023.10.0
+    VERSION 2024.5.0
     DESCRIPTION "The open operating system for e-mobility charging stations"
 	LANGUAGES CXX C
 )
 
-find_package(everest-cmake 0.1
+find_package(everest-cmake 0.4
     COMPONENTS bundling
     PATHS ../everest-cmake
 )
@@ -28,16 +28,49 @@ endif()
 # make own cmake modules available
 list(INSERT CMAKE_MODULE_PATH 0 "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
+# test whether linking with libatomic is required on some platforms
+include(CheckAtomic)
+if(HAVE_CXX_ATOMICS_WITH_LIB OR HAVE_CXX_ATOMICS64_WITH_LIB)
+    set(ATOMIC_LIBS "atomic")
+else()
+    set(ATOMIC_LIBS "")
+endif()
 
 option(CREATE_SYMLINKS "Create symlinks to javascript modules and auxillary files - for development purposes" OFF)
 option(CMAKE_RUN_CLANG_TIDY "Run clang-tidy" OFF)
-option(BUILD_TESTING "Run unit tests" OFF)
 option(ISO15118_2_GENERATE_AND_INSTALL_CERTIFICATES "Automatically generate and install certificates for development purposes" ON)
 option(EVEREST_ENABLE_RUN_SCRIPT_GENERATION "Enables the generation of run scripts (convenience scripts for starting available configurations)" ON)
-
+option(${PROJECT_NAME}_BUILD_TESTING "Build unit tests, used if included as dependency" OFF)
+option(BUILD_TESTING "Build unit tests, used if standalone project" OFF)
+if((${CMAKE_PROJECT_NAME} STREQUAL ${PROJECT_NAME} OR ${PROJECT_NAME}_BUILD_TESTING) AND BUILD_TESTING)
+    set(EVEREST_CORE_BUILD_TESTING ON)
+endif()
 # This is a flag for building development tests, but not necessarily to run them, for expample in case
 # tests requires hardware.
 option(BUILD_DEV_TESTS "Build dev tests" OFF)
+ev_setup_cmake_variables_python_wheel()
+option(${PROJECT_NAME}_INSTALL_EV_CLI_IN_PYTHON_VENV "Install ev-cli in python venv instead of using system" ON)
+set(${PROJECT_NAME}_PYTHON_VENV_PATH "${CMAKE_BINARY_DIR}/venv" CACHE PATH "Path to python venv")
+
+ev_setup_python_executable(
+    USE_PYTHON_VENV ${${PROJECT_NAME}_USE_PYTHON_VENV}
+    PYTHON_VENV_PATH ${${PROJECT_NAME}_PYTHON_VENV_PATH}
+)
+
+# Already include CTest here to allow it to find tests defined in subdirectories like lib and modules
+if(EVEREST_CORE_BUILD_TESTING)
+    include(CTest)
+
+    set(CMAKE_BUILD_TYPE Debug CACHE STRING "Build type" FORCE)
+
+    evc_include(CodeCoverage)
+
+    append_coverage_compiler_flags()
+endif()
+
+include(ev-define-dependency)
+
+include("module-dependencies.cmake")
 
 find_package(Boost
     COMPONENTS
@@ -58,10 +91,9 @@ if(NOT DISABLE_EDM)
     set(EVEREST_SCHEMA_DIR ${everest-framework_SOURCE_DIR}/schemas)
 else()
     find_package(everest-framework REQUIRED)
-    find_package(everest-sunspec REQUIRED)
     find_package(everest-modbus REQUIRED)
     find_package(everest-ocpp REQUIRED)
-    find_package(everest-openv2g REQUIRED)
+    find_package(cbv2g REQUIRED)
 
     find_package(PalSigslot REQUIRED)
 
@@ -110,24 +142,17 @@ if(DOXYGEN_FOUND)
 endif()
 
 # testing
-if(BUILD_TESTING)
-    include(CTest)
-    set(CMAKE_BUILD_TYPE Debug CACHE STRING "Build type" FORCE)
-
-    evc_include(CodeCoverage)
-
-    append_coverage_compiler_flags()
-
+if(EVEREST_CORE_BUILD_TESTING)
     add_subdirectory(tests)
 
     setup_target_for_coverage_gcovr_html(
-        NAME gcovr_coverage
+        NAME ${PROJECT_NAME}_gcovr_coverage
         EXECUTABLE test_config
         DEPENDENCIES test_config everest
     )
 
     setup_target_for_coverage_lcov(
-        NAME lcov_coverage
+        NAME ${PROJECT_NAME}_lcov_coverage
         EXECUTABLE test_config
         DEPENDENCIES test_config everest
     )
@@ -144,7 +169,7 @@ add_custom_target(install_everest_testing
              ${PYTHON_EXECUTABLE} -m pip install "${CPM_PACKAGE_everest-utils_SOURCE_DIR}/everest-testing" \;
         fi\;
     DEPENDS
-        everestpy_pip_install_dist iso15118_pip_install_dist iso15118_requirements_pip_install_dist
+        everestpy_pip_install_dist
     COMMENT
         "Installing dependencies for testing EVerest"
 )

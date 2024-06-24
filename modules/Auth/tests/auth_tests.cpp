@@ -16,6 +16,17 @@ using ::testing::Field;
 using ::testing::MockFunction;
 using ::testing::StrictMock;
 
+namespace types {
+namespace authorization {
+
+// Define operator== for types::authorization::IdToken
+bool operator==(const types::authorization::IdToken& lhs, const types::authorization::IdToken& rhs) {
+    return lhs.value == rhs.value;
+}
+
+} // namespace authorization
+} // namespace types
+
 namespace module {
 
 const static std::string VALID_TOKEN_1 = "VALID_RFID_1"; // SAME PARENT_ID
@@ -34,11 +45,22 @@ static SessionEvent get_session_started_event(const types::evse_manager::StartSe
     return session_event;
 }
 
+static SessionEvent get_transaction_started_event(const ProvidedIdToken provided_token) {
+    SessionEvent session_event;
+    session_event.event = SessionEventEnum::TransactionStarted;
+    TransactionStarted transaction_event;
+    transaction_event.meter_value.energy_Wh_import.total = 0;
+    transaction_event.id_tag = provided_token;
+    session_event.timestamp = Everest::Date::to_rfc3339(date::utc_clock::now());
+    session_event.transaction_started = transaction_event;
+    return session_event;
+}
+
 static ProvidedIdToken get_provided_token(const std::string& id_token,
                                           std::optional<std::vector<int32_t>> connectors = std::nullopt,
                                           std::optional<bool> prevalidated = std::nullopt) {
     ProvidedIdToken provided_token;
-    provided_token.id_token = id_token;
+    provided_token.id_token = {id_token, types::authorization::IdTokenType::ISO14443};
     provided_token.authorization_type = types::authorization::AuthorizationType::RFID;
     if (connectors) {
         provided_token.connectors.emplace(connectors.value());
@@ -54,6 +76,7 @@ class AuthTest : public ::testing::Test {
 protected:
     std::unique_ptr<AuthHandler> auth_handler;
     std::unique_ptr<FakeAuthReceiver> auth_receiver;
+    testing::MockFunction<bool(json message)> send_callback_mock;
     StrictMock<MockFunction<void(const ProvidedIdToken& token, TokenValidationStatus status)>>
         mock_publish_token_validation_status_callback;
 
@@ -61,15 +84,18 @@ protected:
         std::vector<int32_t> evse_indices{0, 1};
         this->auth_receiver = std::make_unique<FakeAuthReceiver>(evse_indices);
 
-        this->auth_handler = std::make_unique<AuthHandler>(SelectionAlgorithm::PlugEvents, CONNECTION_TIMEOUT, false);
+        this->auth_handler =
+            std::make_unique<AuthHandler>(SelectionAlgorithm::PlugEvents, CONNECTION_TIMEOUT, false, false);
 
         this->auth_handler->register_notify_evse_callback([this](const int evse_index,
                                                                  const ProvidedIdToken& provided_token,
                                                                  const ValidationResult& validation_result) {
             EVLOG_debug << "Authorize called with evse_index#" << evse_index << " and id_token "
-                        << provided_token.id_token;
+                        << provided_token.id_token.value;
             if (validation_result.authorization_status == AuthorizationStatus::Accepted) {
                 this->auth_receiver->authorize(evse_index);
+            } else {
+                this->auth_receiver->deauthorize(evse_index);
             }
         });
         this->auth_handler->register_withdraw_authorization_callback([this](int32_t evse_index) {
@@ -85,7 +111,7 @@ protected:
 
         this->auth_handler->register_validate_token_callback([](const ProvidedIdToken& provided_token) {
             std::vector<ValidationResult> validation_results;
-            const auto id_token = provided_token.id_token;
+            const auto id_token = provided_token.id_token.value;
 
             ValidationResult result_1;
             result_1.authorization_status = AuthorizationStatus::Invalid;
@@ -93,7 +119,7 @@ protected:
             ValidationResult result_2;
             if (id_token == VALID_TOKEN_1 || id_token == VALID_TOKEN_3) {
                 result_2.authorization_status = AuthorizationStatus::Accepted;
-                result_2.parent_id_token.emplace(PARENT_ID_TOKEN);
+                result_2.parent_id_token = {PARENT_ID_TOKEN, types::authorization::IdTokenType::ISO14443};
             } else if (id_token == VALID_TOKEN_2) {
                 result_2.authorization_status = AuthorizationStatus::Accepted;
             } else {
@@ -170,13 +196,7 @@ TEST_F(AuthTest, test_stop_transaction) {
     ProvidedIdToken provided_token = get_provided_token(VALID_TOKEN_1, connectors);
 
     SessionEvent session_event1 = get_session_started_event(types::evse_manager::StartSessionReason::EVConnected);
-    SessionEvent session_event2;
-    session_event2.event = SessionEventEnum::TransactionStarted;
-    TransactionStarted transaction_event;
-    transaction_event.meter_value.energy_Wh_import.total = 0;
-    transaction_event.id_tag = provided_token;
-    transaction_event.timestamp = Everest::Date::to_rfc3339(date::utc_clock::now());
-    session_event2.transaction_started = transaction_event;
+    SessionEvent session_event2 = get_transaction_started_event(provided_token);
 
     this->auth_handler->handle_session_event(1, session_event1);
 
@@ -242,6 +262,9 @@ TEST_F(AuthTest, test_swipe_multiple_times_with_timeout) {
     EXPECT_CALL(mock_publish_token_validation_status_callback,
                 Call(Field(&ProvidedIdToken::id_token, provided_token.id_token), TokenValidationStatus::Accepted))
         .Times(2);
+    EXPECT_CALL(mock_publish_token_validation_status_callback,
+                Call(Field(&ProvidedIdToken::id_token, provided_token.id_token), TokenValidationStatus::TimedOut))
+        .Times(1);
 
     TokenHandlingResult result1;
     TokenHandlingResult result2;
@@ -366,6 +389,47 @@ TEST_F(AuthTest, test_two_plugins) {
     ASSERT_TRUE(this->auth_receiver->get_authorization(1));
 }
 
+/// \brief Test if a connector receives authorization after subsequent plug-in and plug-out events
+TEST_F(AuthTest, test_authorization_after_plug_in_and_plug_out) {
+    TokenHandlingResult result1;
+    TokenHandlingResult result2;
+    std::vector<int32_t> connectors{1, 2};
+    ProvidedIdToken provided_token_1 = get_provided_token(VALID_TOKEN_1, connectors);
+
+    // Plug-in and plug-out event on connector 1
+    SessionEvent session_event_connected =
+        get_session_started_event(types::evse_manager::StartSessionReason::EVConnected);
+    SessionEvent session_event_disconnected;
+    session_event_disconnected.event = SessionEventEnum::SessionFinished;
+    std::thread t1(
+        [this, session_event_connected]() { this->auth_handler->handle_session_event(1, session_event_connected); });
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::thread t2([this, session_event_disconnected]() {
+        this->auth_handler->handle_session_event(1, session_event_disconnected);
+    });
+
+    // Swipe RFID
+    EXPECT_CALL(mock_publish_token_validation_status_callback,
+                Call(Field(&ProvidedIdToken::id_token, provided_token_1.id_token), TokenValidationStatus::Processing));
+    EXPECT_CALL(mock_publish_token_validation_status_callback,
+                Call(Field(&ProvidedIdToken::id_token, provided_token_1.id_token), TokenValidationStatus::Accepted));
+    std::thread t3([this, provided_token_1, &result1]() { result1 = this->auth_handler->on_token(provided_token_1); });
+
+    // Plug-in on connector 2, conntector 2 should be authorized
+    std::thread t4(
+        [this, session_event_connected]() { this->auth_handler->handle_session_event(2, session_event_connected); });
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    t1.join();
+    t2.join();
+    t3.join();
+    t4.join();
+
+    ASSERT_TRUE(result1 == TokenHandlingResult::ACCEPTED);
+    ASSERT_FALSE(this->auth_receiver->get_authorization(0));
+    ASSERT_TRUE(this->auth_receiver->get_authorization(1));
+}
+
 /// \brief Test if transactions can be started for two succeeding plugins before one valid and one invalid card swipe
 TEST_F(AuthTest, test_two_plugins_with_invalid_rfid) {
 
@@ -391,18 +455,18 @@ TEST_F(AuthTest, test_two_plugins_with_invalid_rfid) {
                 Call(Field(&ProvidedIdToken::id_token, provided_token_1.id_token), TokenValidationStatus::Accepted));
     EXPECT_CALL(mock_publish_token_validation_status_callback,
                 Call(Field(&ProvidedIdToken::id_token, provided_token_2.id_token), TokenValidationStatus::Rejected));
-
-    std::thread t3([this, provided_token_1, &result1]() { result1 = this->auth_handler->on_token(provided_token_1); });
-    std::thread t4([this, provided_token_2, &result2]() { result2 = this->auth_handler->on_token(provided_token_2); });
-
     t1.join();
     t2.join();
+    std::thread t3([this, provided_token_1, &result1]() { result1 = this->auth_handler->on_token(provided_token_1); });
     t3.join();
-    t4.join();
 
     ASSERT_TRUE(result1 == TokenHandlingResult::ACCEPTED);
-    ASSERT_TRUE(result2 == TokenHandlingResult::REJECTED);
     ASSERT_TRUE(this->auth_receiver->get_authorization(0));
+
+    std::thread t4([this, provided_token_2, &result2]() { result2 = this->auth_handler->on_token(provided_token_2); });
+    t4.join();
+
+    ASSERT_TRUE(result2 == TokenHandlingResult::REJECTED);
     ASSERT_FALSE(this->auth_receiver->get_authorization(1));
 }
 
@@ -460,21 +524,8 @@ TEST_F(AuthTest, test_transaction_finish) {
 
     SessionEvent session_event1 = get_session_started_event(types::evse_manager::StartSessionReason::EVConnected);
 
-    SessionEvent session_event2;
-    session_event2.event = SessionEventEnum::TransactionStarted;
-    TransactionStarted transaction_event1;
-    transaction_event1.meter_value.energy_Wh_import.total = 0;
-    transaction_event1.id_tag = provided_token_1;
-    transaction_event1.timestamp = Everest::Date::to_rfc3339(date::utc_clock::now());
-    session_event2.transaction_started = transaction_event1;
-
-    SessionEvent session_event3;
-    session_event3.event = SessionEventEnum::TransactionStarted;
-    TransactionStarted transaction_event2;
-    transaction_event2.meter_value.energy_Wh_import.total = 0;
-    transaction_event2.id_tag = provided_token_2;
-    transaction_event2.timestamp = Everest::Date::to_rfc3339(date::utc_clock::now());
-    session_event3.transaction_started = transaction_event2;
+    SessionEvent session_event2 = get_transaction_started_event(provided_token_1);
+    SessionEvent session_event3 = get_transaction_started_event(provided_token_2);
 
     std::thread t1([this, session_event1]() { this->auth_handler->handle_session_event(1, session_event1); });
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -539,13 +590,7 @@ TEST_F(AuthTest, test_parent_id_finish) {
 
     std::thread t1([this, session_event1]() { this->auth_handler->handle_session_event(1, session_event1); });
 
-    SessionEvent session_event2;
-    session_event2.event = SessionEventEnum::TransactionStarted;
-    TransactionStarted transaction_event1;
-    transaction_event1.meter_value.energy_Wh_import.total = 0;
-    transaction_event1.id_tag = provided_token_1;
-    transaction_event1.timestamp = Everest::Date::to_rfc3339(date::utc_clock::now());
-    session_event2.transaction_started = transaction_event1;
+    SessionEvent session_event2 = get_transaction_started_event(provided_token_1);
     EXPECT_CALL(mock_publish_token_validation_status_callback,
                 Call(Field(&ProvidedIdToken::id_token, provided_token_1.id_token), TokenValidationStatus::Processing));
     EXPECT_CALL(mock_publish_token_validation_status_callback,
@@ -667,13 +712,7 @@ TEST_F(AuthTest, test_parent_id_finish_because_no_available_connector) {
 
     ASSERT_TRUE(result == TokenHandlingResult::ACCEPTED);
 
-    SessionEvent session_event_3;
-    session_event_3.event = SessionEventEnum::TransactionStarted;
-    TransactionStarted transaction_event;
-    transaction_event.meter_value.energy_Wh_import.total = 0;
-    transaction_event.id_tag = provided_token_1;
-    transaction_event.timestamp = Everest::Date::to_rfc3339(date::utc_clock::now());
-    session_event_3.transaction_started = transaction_event;
+    SessionEvent session_event_3 = get_transaction_started_event(provided_token_1);
     std::thread t4([this, session_event_3]() { this->auth_handler->handle_session_event(1, session_event_3); });
 
     t4.join();
@@ -788,12 +827,7 @@ TEST_F(AuthTest, test_complete_event_flow) {
     // events
     SessionEvent session_event_1 = get_session_started_event(types::evse_manager::StartSessionReason::EVConnected);
 
-    SessionEvent session_event_2;
-    session_event_2.event = SessionEventEnum::TransactionStarted;
-    TransactionStarted transaction_event;
-    transaction_event.meter_value.energy_Wh_import.total = 0;
-    transaction_event.id_tag = provided_token;
-    transaction_event.timestamp = Everest::Date::to_rfc3339(date::utc_clock::now());
+    SessionEvent session_event_2 = get_transaction_started_event(provided_token);
 
     SessionEvent session_event_3;
     session_event_3.event = SessionEventEnum::ChargingPausedEV;
@@ -806,7 +840,7 @@ TEST_F(AuthTest, test_complete_event_flow) {
     TransactionStarted transaction_finished_event;
     transaction_finished_event.meter_value.energy_Wh_import.total = 1000;
     transaction_finished_event.id_tag = provided_token;
-    transaction_finished_event.timestamp = Everest::Date::to_rfc3339(date::utc_clock::now());
+    session_event_5.timestamp = Everest::Date::to_rfc3339(date::utc_clock::now());
 
     SessionEvent session_event_6;
     session_event_6.event = SessionEventEnum::SessionFinished;
@@ -922,6 +956,9 @@ TEST_F(AuthTest, test_authorization_timeout_and_reswipe) {
     EXPECT_CALL(mock_publish_token_validation_status_callback,
                 Call(Field(&ProvidedIdToken::id_token, provided_token.id_token), TokenValidationStatus::Accepted))
         .Times(2);
+    EXPECT_CALL(mock_publish_token_validation_status_callback,
+                Call(Field(&ProvidedIdToken::id_token, provided_token.id_token), TokenValidationStatus::TimedOut))
+        .Times(1);
 
     TokenHandlingResult result;
     std::thread t1([this, provided_token, &result]() { result = this->auth_handler->on_token(provided_token); });
@@ -998,21 +1035,9 @@ TEST_F(AuthTest, test_two_transactions_start_stop) {
     ProvidedIdToken provided_token_1 = get_provided_token(VALID_TOKEN_1, connectors);
     ProvidedIdToken provided_token_2 = get_provided_token(VALID_TOKEN_2, connectors);
 
-    SessionEvent session_event2;
-    session_event2.event = SessionEventEnum::TransactionStarted;
-    TransactionStarted transaction_event_1;
-    transaction_event_1.meter_value.energy_Wh_import.total = 0;
-    transaction_event_1.id_tag = provided_token_1;
-    transaction_event_1.timestamp = Everest::Date::to_rfc3339(date::utc_clock::now());
-    session_event2.transaction_started = transaction_event_1;
+    SessionEvent session_event2 = get_transaction_started_event(provided_token_1);
 
-    SessionEvent session_event3;
-    session_event3.event = SessionEventEnum::TransactionStarted;
-    TransactionStarted transaction_event_2;
-    transaction_event_2.meter_value.energy_Wh_import.total = 0;
-    transaction_event_2.id_tag = provided_token_2;
-    transaction_event_2.timestamp = Everest::Date::to_rfc3339(date::utc_clock::now());
-    session_event3.transaction_started = transaction_event_2;
+    SessionEvent session_event3 = get_transaction_started_event(provided_token_2);
 
     EXPECT_CALL(mock_publish_token_validation_status_callback,
                 Call(Field(&ProvidedIdToken::id_token, provided_token_1.id_token), TokenValidationStatus::Processing))
@@ -1068,7 +1093,7 @@ TEST_F(AuthTest, test_plug_and_charge) {
     this->auth_handler->handle_session_event(1, session_event);
 
     ProvidedIdToken provided_token;
-    provided_token.id_token = VALID_TOKEN_1;
+    provided_token.id_token = {VALID_TOKEN_1, types::authorization::IdTokenType::eMAID};
     provided_token.authorization_type = types::authorization::AuthorizationType::PlugAndCharge;
     provided_token.certificate.emplace("TestCertificate");
 
@@ -1083,12 +1108,39 @@ TEST_F(AuthTest, test_plug_and_charge) {
     ASSERT_FALSE(this->auth_receiver->get_authorization(1));
 }
 
+/// \brief Test PlugAndCharge
+TEST_F(AuthTest, test_plug_and_charge_rejected) {
+
+    // put authorization on evse so that we can check later if it was removed
+    this->auth_receiver->authorize(0);
+    ASSERT_TRUE(this->auth_receiver->get_authorization(0));
+
+    const SessionEvent session_event = get_session_started_event(types::evse_manager::StartSessionReason::EVConnected);
+    this->auth_handler->handle_session_event(1, session_event);
+
+    ProvidedIdToken provided_token;
+    provided_token.id_token = {INVALID_TOKEN, types::authorization::IdTokenType::eMAID};
+    provided_token.authorization_type = types::authorization::AuthorizationType::PlugAndCharge;
+    provided_token.certificate.emplace("TestCertificate");
+    provided_token.connectors = {1, 2};
+
+    EXPECT_CALL(mock_publish_token_validation_status_callback,
+                Call(Field(&ProvidedIdToken::id_token, provided_token.id_token), TokenValidationStatus::Processing));
+    EXPECT_CALL(mock_publish_token_validation_status_callback,
+                Call(Field(&ProvidedIdToken::id_token, provided_token.id_token), TokenValidationStatus::Rejected));
+
+    const auto result = this->auth_handler->on_token(provided_token);
+    ASSERT_TRUE(result == TokenHandlingResult::REJECTED);
+    ASSERT_FALSE(this->auth_receiver->get_authorization(0));
+    ASSERT_FALSE(this->auth_receiver->get_authorization(1));
+}
+
 /// \brief Test empty intersection of referenced connectors in provided token and in validation result
 TEST_F(AuthTest, test_empty_intersection) {
 
     this->auth_handler->register_validate_token_callback([](const ProvidedIdToken& provided_token) {
         std::vector<ValidationResult> validation_results;
-        const auto id_token = provided_token.id_token;
+        const auto id_token = provided_token.id_token.value;
 
         std::vector<int> evse_ids{2};
         std::vector<int> evse_ids2{1, 2};
@@ -1114,7 +1166,7 @@ TEST_F(AuthTest, test_empty_intersection) {
 
     std::vector<int32_t> connectors{1};
     ProvidedIdToken provided_token;
-    provided_token.id_token = VALID_TOKEN_1;
+    provided_token.id_token = {VALID_TOKEN_1, types::authorization::IdTokenType::eMAID};
     provided_token.authorization_type = types::authorization::AuthorizationType::PlugAndCharge;
     provided_token.certificate.emplace("TestCertificate");
     provided_token.connectors.emplace(connectors);
@@ -1129,4 +1181,86 @@ TEST_F(AuthTest, test_empty_intersection) {
     ASSERT_TRUE(this->auth_receiver->get_authorization(0));
     ASSERT_FALSE(this->auth_receiver->get_authorization(1));
 }
+
+TEST_F(AuthTest, test_master_pass_group_id) {
+    // set master group id to parent id token
+    this->auth_handler->set_master_pass_group_id(PARENT_ID_TOKEN);
+    // set_prioritize_authorization_over_stopping_transaction=false; otherwise token could be used for authorization of
+    // another connector
+    this->auth_handler->set_prioritize_authorization_over_stopping_transaction(false);
+    const SessionEvent session_event = get_session_started_event(types::evse_manager::StartSessionReason::EVConnected);
+    this->auth_handler->handle_session_event(1, session_event);
+    auto provided_token = get_provided_token(PARENT_ID_TOKEN);
+
+    // Test if group id token is not allowed to start transactions
+    EXPECT_CALL(mock_publish_token_validation_status_callback,
+                Call(Field(&ProvidedIdToken::id_token, provided_token.id_token), TokenValidationStatus::Processing));
+    EXPECT_CALL(mock_publish_token_validation_status_callback,
+                Call(Field(&ProvidedIdToken::id_token, provided_token.id_token), TokenValidationStatus::Rejected));
+
+    auto result = this->auth_handler->on_token(provided_token);
+
+    ASSERT_TRUE(result == TokenHandlingResult::REJECTED);
+
+    provided_token = get_provided_token(VALID_TOKEN_2);
+    provided_token.parent_id_token = std::nullopt;
+
+    EXPECT_CALL(mock_publish_token_validation_status_callback,
+                Call(Field(&ProvidedIdToken::id_token, provided_token.id_token), TokenValidationStatus::Processing));
+    EXPECT_CALL(mock_publish_token_validation_status_callback,
+                Call(Field(&ProvidedIdToken::id_token, provided_token.id_token), TokenValidationStatus::Accepted));
+
+    result = this->auth_handler->on_token(
+        provided_token); // swipe token that gets accepted without parent id in validation result
+    ASSERT_TRUE(result == TokenHandlingResult::ACCEPTED);
+
+    // start transaction
+    SessionEvent session_event2 = get_transaction_started_event(provided_token);
+
+    provided_token.id_token = {VALID_TOKEN_1, types::authorization::IdTokenType::ISO14443};
+
+    // check if group id token can stop transactions
+    this->auth_handler->handle_session_event(1, session_event2);
+    // wait for state machine to process event
+    std::this_thread::sleep_for(std::chrono::milliseconds(25));
+
+    EXPECT_CALL(mock_publish_token_validation_status_callback,
+                Call(Field(&ProvidedIdToken::id_token, provided_token.id_token), TokenValidationStatus::Processing));
+    EXPECT_CALL(mock_publish_token_validation_status_callback,
+                Call(Field(&ProvidedIdToken::id_token, provided_token.id_token), TokenValidationStatus::Accepted));
+
+    // second swipe to finish transaction
+    result = this->auth_handler->on_token(provided_token);
+    ASSERT_TRUE(result == TokenHandlingResult::USED_TO_STOP_TRANSACTION);
+    ASSERT_FALSE(this->auth_receiver->get_authorization(0));
+    ASSERT_FALSE(this->auth_receiver->get_authorization(1));
+}
+
+/// \brief Test TimedOut is published when authorization was provided but transaction has never been started.
+TEST_F(AuthTest, test_token_timed_out) {
+    // In order to time-out waiting for a plug-in event, we need to get select_connector to wait for a plug-in event
+    // in the first place.
+    // To get select_connector to wait for a plug-in event, we must provide more then one connector here, since if we
+    // provide only 1, select_connector would just return the single connector.
+    std::vector<int32_t> connectors{1, 2};
+
+    ProvidedIdToken provided_token = get_provided_token(VALID_TOKEN_1, connectors);
+
+    EXPECT_CALL(mock_publish_token_validation_status_callback,
+                Call(Field(&ProvidedIdToken::id_token, provided_token.id_token), TokenValidationStatus::Processing));
+    EXPECT_CALL(mock_publish_token_validation_status_callback,
+                Call(Field(&ProvidedIdToken::id_token, provided_token.id_token), TokenValidationStatus::Accepted));
+    EXPECT_CALL(mock_publish_token_validation_status_callback,
+                Call(Field(&ProvidedIdToken::id_token, provided_token.id_token), TokenValidationStatus::TimedOut));
+
+    TokenHandlingResult result;
+    std::thread t1([this, provided_token, &result]() { result = this->auth_handler->on_token(provided_token); });
+    t1.join();
+
+    ASSERT_TRUE(result == TokenHandlingResult::TIMEOUT);
+
+    // wait for timeout, after which TimedOut should be published.
+    std::this_thread::sleep_for(std::chrono::seconds(CONNECTION_TIMEOUT + 1));
+}
+
 } // namespace module

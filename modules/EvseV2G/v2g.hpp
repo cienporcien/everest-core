@@ -22,37 +22,28 @@
 #else
 #include <mbedtls/net_sockets.h>
 #endif
-#include <openv2g/EXITypes.h>
-#include <openv2g/appHandEXIDatatypes.h>
+#include <cbv2g/app_handshake/appHand_Datatypes.h>
+#include <cbv2g/common/exi_basetypes.h>
+#include <cbv2g/common/exi_bitstream.h>
 
-#undef EXIFragment_ServiceScope_CHARACTERS_SIZE // Needed because of redefinition warnings (v2g and din type include)
-#undef EXIFragment_Certificate_BYTES_SIZE
-#undef EXIFragment_OEMProvisioningCert_BYTES_SIZE
-#undef EXIFragment_EVCCID_BYTES_SIZE
-#undef EXIFragment_SigMeterReading_BYTES_SIZE
-#include <openv2g/iso1EXIDatatypes.h>
-#undef EXIFragment_ServiceScope_CHARACTERS_SIZE
-#undef EXIFragment_Certificate_BYTES_SIZE
-#undef EXIFragment_OEMProvisioningCert_BYTES_SIZE
-#undef EXIFragment_EVCCID_BYTES_SIZE
-#undef EXIFragment_SigMeterReading_BYTES_SIZE
+#include <cbv2g/din/din_msgDefDatatypes.h>
+#include <cbv2g/iso_2/iso2_msgDefDatatypes.h>
 #include <event2/event.h>
 #include <event2/thread.h>
-#include <openv2g/dinEXIDatatypes.h>
 
 /* timeouts in milliseconds */
 #define V2G_SEQUENCE_TIMEOUT_60S              60000 /* [V2G2-443] et.al. */
 #define V2G_SEQUENCE_TIMEOUT_10S              10000
-#define V2G_CP_STATE_B_TO_C_D_TIMEOUT         250   /* [V2G2-847] */
-#define V2G_CP_STATE_B_TO_C_D_TIMEOUT_RELAXED 500   /* [V2G2-847] */
-#define V2G_CP_STATE_C_D_TO_B_TIMEOUT         250   /* [V2G2-848] */
-#define V2G_CONTACTOR_CLOSE_TIMEOUT           3000  /* [V2G2-862] [V2G2-865] 4.5 s for PowerDeliveryRes */
+#define V2G_CP_STATE_B_TO_C_D_TIMEOUT         250  /* [V2G2-847] */
+#define V2G_CP_STATE_B_TO_C_D_TIMEOUT_RELAXED 500  /* [V2G2-847] */
+#define V2G_CP_STATE_C_D_TO_B_TIMEOUT         250  /* [V2G2-848] */
+#define V2G_CONTACTOR_CLOSE_TIMEOUT           3000 /* [V2G2-862] [V2G2-865] 4.5 s for PowerDeliveryRes */
 #define V2G_COMMUNICATION_SETUP_TIMEOUT                                                                                \
     18000 /* [V2G2-723] [V2G2-029] [V2G2-032] [V2G2-714] [V2G2-716] V2G_SECC_CommunicationSetup_Performance_Time */
 #define V2G_CPSTATE_DETECTION_TIMEOUT                                                                                  \
-    1500  /* [V2G-DC-547] not (yet) defined for ISO and not implemented, but may be implemented */
+    1500 /* [V2G-DC-547] not (yet) defined for ISO and not implemented, but may be implemented */
 #define V2G_CPSTATE_DETECTION_TIMEOUT_RELAXED                                                                          \
-    3000  /* [V2G-DC-547] not (yet) defined for ISO and not implemented, but may be implemented */
+    3000 /* [V2G-DC-547] not (yet) defined for ISO and not implemented, but may be implemented */
 
 #define SA_SCHEDULE_DURATION 86400
 
@@ -150,13 +141,13 @@ enum V2gMsgTypeId {
 
 /* EVSE ID */
 struct v2g_evse_id {
-    uint8_t bytes[iso1SessionSetupResType_EVSEID_CHARACTERS_SIZE];
+    uint8_t bytes[iso2_EVSEID_CHARACTER_SIZE];
     uint16_t bytesLen;
 };
 
 /* Meter ID */
 struct v2g_meter_id {
-    uint8_t bytes[iso1MeterInfoType_MeterID_CHARACTERS_SIZE];
+    uint8_t bytes[iso2_MeterID_CHARACTER_SIZE];
     uint16_t bytesLen;
 };
 
@@ -166,6 +157,8 @@ typedef struct keylogDebugCtx {
     bool inClientRandom;
     bool inMasterSecret;
     uint8_t hexdumpLinesToProcess;
+    int udp_socket;
+    std::string udp_buffer;
 } keylogDebugCtx;
 
 struct SAE_Bidi_Data {
@@ -203,6 +196,10 @@ struct v2g_context {
 
     int sdp_socket;
     int tcp_socket;
+
+    int udp_port;
+    int udp_socket;
+
     pthread_t tcp_thread;
 
     mbedtls_ssl_config ssl_config;
@@ -242,7 +239,7 @@ struct v2g_context {
     std::atomic_bool is_connection_terminated; /* Is set to true if the connection is terminated (CP State A/F, shutdown
                                       immediately without response message) */
     std::atomic<bool> terminate_connection_on_failed_response;
-    std::atomic<bool> contactor_is_closed;     /* Actual contactor state */
+    std::atomic<bool> contactor_is_closed; /* Actual contactor state */
 
     struct {
         bool meter_info_is_used;
@@ -262,15 +259,15 @@ struct v2g_context {
         uint8_t evse_processing[PHASE_LENGTH];
         struct v2g_evse_id evse_id;
         unsigned int date_time_now_is_used;
-        struct iso1ChargeServiceType charge_service;
-        struct iso1ServiceType evse_service_list[iso1ServiceListType_Service_ARRAY_SIZE];
-        struct iso1ServiceParameterListType service_parameter_list[iso1ServiceListType_Service_ARRAY_SIZE];
+        struct iso2_ChargeServiceType charge_service;
+        struct iso2_ServiceType evse_service_list[iso2_ServiceType_8_ARRAY_SIZE];
+        struct iso2_ServiceParameterListType service_parameter_list[iso2_ServiceType_8_ARRAY_SIZE];
         uint16_t evse_service_list_len;
 
-        struct iso1SAScheduleListType evse_sa_schedule_list;
+        struct iso2_SAScheduleListType evse_sa_schedule_list;
         bool evse_sa_schedule_list_is_used;
 
-        iso1paymentOptionType payment_option_list[iso1PaymentOptionListType_PaymentOption_ARRAY_SIZE];
+        iso2_paymentOptionType payment_option_list[iso2_paymentOptionType_2_ARRAY_SIZE];
         uint8_t payment_option_list_len;
 
         bool cert_install_status;
@@ -281,27 +278,27 @@ struct v2g_context {
         int receipt_required;
 
         // evse power electronic values
-        struct iso1PhysicalValueType evse_current_regulation_tolerance;
+        struct iso2_PhysicalValueType evse_current_regulation_tolerance;
         unsigned int evse_current_regulation_tolerance_is_used;
-        struct iso1PhysicalValueType evse_energy_to_be_delivered;
+        struct iso2_PhysicalValueType evse_energy_to_be_delivered;
         unsigned int evse_energy_to_be_delivered_is_used;
-        struct iso1PhysicalValueType evse_maximum_current_limit; // DC charging
+        struct iso2_PhysicalValueType evse_maximum_current_limit; // DC charging
         unsigned int evse_maximum_current_limit_is_used;
         int evse_current_limit_achieved;
-        struct iso1PhysicalValueType evse_maximum_power_limit;
+        struct iso2_PhysicalValueType evse_maximum_power_limit;
         unsigned int evse_maximum_power_limit_is_used;
         int evse_power_limit_achieved;
-        struct iso1PhysicalValueType evse_maximum_voltage_limit;
+        struct iso2_PhysicalValueType evse_maximum_voltage_limit;
         unsigned int evse_maximum_voltage_limit_is_used;
         int evse_voltage_limit_achieved;
-        struct iso1PhysicalValueType evse_minimum_current_limit;
-        struct iso1PhysicalValueType evse_minimum_voltage_limit;
-        struct iso1PhysicalValueType evse_peak_current_ripple;
-        struct iso1PhysicalValueType evse_present_voltage;
-        struct iso1PhysicalValueType evse_present_current;
+        struct iso2_PhysicalValueType evse_minimum_current_limit;
+        struct iso2_PhysicalValueType evse_minimum_voltage_limit;
+        struct iso2_PhysicalValueType evse_peak_current_ripple;
+        struct iso2_PhysicalValueType evse_present_voltage;
+        struct iso2_PhysicalValueType evse_present_current;
 
         /* AC only power electronic values */
-        struct iso1PhysicalValueType evse_nominal_voltage;
+        struct iso2_PhysicalValueType evse_nominal_voltage;
 
         // Specific SAE J2847 bidi values
         struct SAE_Bidi_Data sae_bidi_data;
@@ -310,13 +307,14 @@ struct v2g_context {
 
     struct {
         /* V2G session values */
-        iso1paymentOptionType iso_selected_payment_option;
+        iso2_paymentOptionType iso_selected_payment_option;
         long long int auth_start_timeout;
         int auth_timeout_eim;
         int auth_timeout_pnc;                                       // for PnC
         uint8_t gen_challenge[16];                                  // for PnC
         bool verify_contract_cert_chain;                            // for PnC
         types::authorization::CertificateStatus certificate_status; // for PnC
+        bool authorization_rejected;                                // for PnC
 
         struct {
             bool valid_crt;
@@ -336,8 +334,8 @@ struct v2g_context {
                                       // not change during a V2G Communication Session.
 
         union {
-            struct dinDC_EVStatusType din_dc_ev_status;
-            struct iso1DC_EVStatusType iso1_dc_ev_status;
+            struct din_DC_EVStatusType din_dc_ev_status;
+            struct iso2_DC_EVStatusType iso2_dc_ev_status;
         };
         float ev_maximum_current_limit;
         float ev_maximum_power_limit;
@@ -376,21 +374,20 @@ struct v2g_connection {
 
     /* V2GTP EXI encoding/decoding stuff */
     uint8_t* buffer;
-    size_t buffer_pos;
     uint32_t payload_len;
-    bitstream_t stream;
+    exi_bitstream_t stream;
 
-    struct appHandEXIDocument handshake_req;
-    struct appHandEXIDocument handshake_resp;
+    struct appHand_exiDocument handshake_req;
+    struct appHand_exiDocument handshake_resp;
 
     union {
-        struct dinEXIDocument* dinEXIDocument;
-        struct iso1EXIDocument* iso1EXIDocument;
+        struct din_exiDocument* dinEXIDocument;
+        struct iso2_exiDocument* iso2EXIDocument;
     } exi_in;
 
     union {
-        struct dinEXIDocument* dinEXIDocument;
-        struct iso1EXIDocument* iso1EXIDocument;
+        struct din_exiDocument* dinEXIDocument;
+        struct iso2_exiDocument* iso2EXIDocument;
     } exi_out;
 
     enum mqtt_dlink_action dlink_action; /* signaled action after connection is closed */

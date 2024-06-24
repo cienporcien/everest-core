@@ -19,7 +19,6 @@ active_modules:
     config_module:
       connector_id: 1
       country_code: DE
-      rcd_enabled: true
       evse_id: DE*PNX*E12345*1
       evse_id_din: 49A80737A45678
       session_logging: true
@@ -50,12 +49,14 @@ active_modules:
     module: JsDCSupplySimulator
   yeti_driver:
     module: JsYetiSimulator
+    config_module:
+      connector_id: 1
   slac:
     module: JsSlacSimulator
   imd:
-    module: JsIMDSimulator
-  car_simulator:
-    module: JsCarSimulator
+    module: IMDSimulator
+  ev_manager:
+    module: JsEvManager
     config_module:
       connector_id: 1
       auto_enable: true
@@ -64,9 +65,9 @@ active_modules:
       dc_target_current: 20
       dc_target_voltage: 400
     connections:
-      simulation_control:
+      ev_board_support:
         - module_id: yeti_driver
-          implementation_id: yeti_simulation_control
+          implementation_id: ev_board_support
       ev:
         - module_id: iso15118_car
           implementation_id: ev

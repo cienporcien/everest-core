@@ -1,6 +1,9 @@
 # Setup module API documentation
 This module is responsible for setup tasks that might need privileged access, for example wifi configuration.
 
+If not run as root user, set at least the following capabilities in your EVerest config file: CAP_NET_ADMIN, CAP_NET_RAW, CAP_DAC_OVERRIDE.
+They will be passed on to the child processes such as wpa_cli etc.
+
 ## Periodically published variables
 ### everest_api/setup/var/supported_setup_features
 This variable is published periodically and contains a JSON object with the supported features in the following form:
@@ -135,9 +138,29 @@ To add a wifi network a payload with the following format must be published to t
 {
     "interface": "wlan0",
     "ssid": "Example",
-    "psk": "a_valid_pre_shared_key"
+    "psk": "20fcb529dee0aad11b0568f553942850d06e4c4531c0d75b35345d580b300f78"
 }
 ```
+The PSK field can represent the passphrase instead using escaped quotes:
+```json
+{
+    "interface": "wlan0",
+    "ssid": "Example",
+    "psk": "\"A_valid_passphrase\""
+}
+```
+For open WiFi networks the psk must be an empty string `"psk": ""`.
+
+For hidden networks an optional item is needed:
+```json
+{
+    "interface": "wlan0",
+    "ssid": "Example",
+    "psk": "\"A_valid_passphrase\"",
+    "hidden": true
+}
+```
+When `hidden` is not supplied then it is assumed to be false.
 
 ### everest_api/setup/cmd/enable_network
 To enable a wifi network a payload with the following format must be published to this topic:

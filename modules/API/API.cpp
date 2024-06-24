@@ -9,7 +9,7 @@ namespace module {
 static const auto NOTIFICATION_PERIOD = std::chrono::seconds(1);
 
 SessionInfo::SessionInfo() :
-    state("Unknown"),
+    state(State::Unknown),
     start_energy_import_wh(0),
     end_energy_import_wh(0),
     latest_total_w(0),
@@ -17,11 +17,15 @@ SessionInfo::SessionInfo() :
     end_energy_export_wh(0) {
     this->start_time_point = date::utc_clock::now();
     this->end_time_point = this->start_time_point;
+
+    uk_random_delay_remaining.countdown_s = 0;
+    uk_random_delay_remaining.current_limit_after_delay_A = 0.;
+    uk_random_delay_remaining.current_limit_during_delay_A = 0;
 }
 
-bool SessionInfo::is_state_charging(const std::string& current_state) {
-    if (current_state == "AuthRequired" || current_state == "Charging" || current_state == "ChargingPausedEV" ||
-        current_state == "ChargingPausedEVSE") {
+bool SessionInfo::is_state_charging(const SessionInfo::State current_state) {
+    if (current_state == State::AuthRequired || current_state == State::Charging ||
+        current_state == State::ChargingPausedEV || current_state == State::ChargingPausedEVSE) {
         return true;
     }
     return false;
@@ -29,8 +33,9 @@ bool SessionInfo::is_state_charging(const std::string& current_state) {
 
 void SessionInfo::reset() {
     std::lock_guard<std::mutex> lock(this->session_info_mutex);
-    this->state = "Unknown";
-    this->state_info = "";
+    this->state = State::Unknown;
+    this->active_permanent_faults.clear();
+    this->active_errors.clear();
     this->start_energy_import_wh = 0;
     this->end_energy_import_wh = 0;
     this->start_energy_export_wh = 0;
@@ -65,43 +70,104 @@ types::energy::ExternalLimits get_external_limits(const std::string& data, bool 
     return external_limits;
 }
 
-void SessionInfo::update_state(const std::string& event, const std::string& state_info) {
-    std::lock_guard<std::mutex> lock(this->session_info_mutex);
+static void remove_error_from_list(std::vector<module::SessionInfo::Error>& list, const std::string& error_type) {
+    list.erase(std::remove_if(list.begin(), list.end(),
+                              [error_type](const module::SessionInfo::Error& err) { return err.type == error_type; }),
+               list.end());
+}
 
-    this->state_info = state_info;
-    if (event == "Enabled") {
-        this->state = "Unplugged";
-    } else if (event == "Disabled") {
-        this->state = "Disabled";
-    } else if (event == "SessionStarted") {
-        this->state = "Preparing";
-    } else if (event == "ReservationStart") {
-        this->state = "Reserved";
-    } else if (event == "ReservationEnd") {
-        this->state = "Unplugged";
-    } else if (event == "AuthRequired") {
-        this->state = "AuthRequired";
-    } else if (event == "WaitingForEnergy") {
-        this->state = "WaitingForEnergy";
-    } else if (event == "TransactionStarted") {
-        this->state = "Preparing";
-    } else if (event == "ChargingPausedEV") {
-        this->state = "ChargingPausedEV";
-    } else if (event == "ChargingPausedEVSE") {
-        this->state = "ChargingPausedEVSE";
-    } else if (event == "ChargingStarted") {
-        this->state = "Charging";
-    } else if (event == "ChargingResumed") {
-        this->state = "Charging";
-    } else if (event == "TransactionFinished") {
-        this->state = "Finished";
-    } else if (event == "SessionFinished") {
-        this->state = "Unplugged";
-    } else if (event == "Error") {
-        this->state = "Error";
-    } else if (event == "PermanentFault") {
-        this->state = "PermanentFault";
+void SessionInfo::update_state(const types::evse_manager::SessionEventEnum event, const SessionInfo::Error& error) {
+    std::lock_guard<std::mutex> lock(this->session_info_mutex);
+    using Event = types::evse_manager::SessionEventEnum;
+
+    // using switch since some code analysis tools can detect missing cases
+    // (when new events are added)
+    switch (event) {
+    case Event::Enabled:
+        this->state = State::Unplugged;
+        break;
+    case Event::Disabled:
+        this->state = State::Disabled;
+        break;
+    case Event::AuthRequired:
+        this->state = State::AuthRequired;
+        break;
+    case Event::PrepareCharging:
+    case Event::SessionStarted:
+    case Event::TransactionStarted:
+        this->state = State::Preparing;
+        break;
+    case Event::ChargingResumed:
+    case Event::ChargingStarted:
+        this->state = State::Charging;
+        break;
+    case Event::ChargingPausedEV:
+        this->state = State::ChargingPausedEV;
+        break;
+    case Event::ChargingPausedEVSE:
+        this->state = State::ChargingPausedEVSE;
+        break;
+    case Event::WaitingForEnergy:
+        this->state = State::WaitingForEnergy;
+        break;
+    case Event::ChargingFinished:
+    case Event::StoppingCharging:
+    case Event::TransactionFinished:
+        this->state = State::Finished;
+        break;
+    case Event::ReservationStart:
+        this->state = State::Reserved;
+        break;
+    case Event::ReservationEnd:
+    case Event::SessionFinished:
+        this->state = State::Unplugged;
+        break;
+    case Event::Error:
+        this->active_errors.push_back(error);
+        break;
+    case Event::AllErrorsCleared:
+        this->active_permanent_faults.clear();
+        this->active_errors.clear();
+        break;
+    case Event::PermanentFault:
+        this->active_permanent_faults.push_back(error);
+        break;
+    case Event::ErrorCleared:
+    case Event::PermanentFaultCleared:
+        remove_error_from_list(this->active_permanent_faults, error.type);
+        break;
+    case Event::ReplugStarted:
+    case Event::ReplugFinished:
+    case Event::PluginTimeout:
+    default:
+        break;
     }
+}
+
+std::string SessionInfo::state_to_string(SessionInfo::State s) {
+    switch (s) {
+    case SessionInfo::State::Unplugged:
+        return "Unplugged";
+    case SessionInfo::State::Disabled:
+        return "Disabled";
+    case SessionInfo::State::Preparing:
+        return "Preparing";
+    case SessionInfo::State::Reserved:
+        return "Reserved";
+    case SessionInfo::State::AuthRequired:
+        return "AuthRequired";
+    case SessionInfo::State::WaitingForEnergy:
+        return "WaitingForEnergy";
+    case SessionInfo::State::ChargingPausedEV:
+        return "ChargingPausedEV";
+    case SessionInfo::State::ChargingPausedEVSE:
+        return "ChargingPausedEVSE";
+    case SessionInfo::State::Charging:
+        return "Charging";
+    case SessionInfo::State::Finished:
+        return "Finished";
+    }
+    return "Unknown";
 }
 
 void SessionInfo::set_start_energy_import_wh(int32_t start_energy_import_wh) {
@@ -152,6 +218,23 @@ void SessionInfo::set_latest_total_w(double latest_total_w) {
     this->latest_total_w = latest_total_w;
 }
 
+void SessionInfo::set_uk_random_delay_remaining(const types::uk_random_delay::CountDown& cd) {
+    std::lock_guard<std::mutex> lock(this->session_info_mutex);
+    this->uk_random_delay_remaining = cd;
+}
+
+void SessionInfo::set_enable_disable_source(const std::string& active_source, const std::string& active_state,
+                                            const int active_priority) {
+    std::lock_guard<std::mutex> lock(this->session_info_mutex);
+    this->active_enable_disable_source = active_source;
+    this->active_enable_disable_state = active_state;
+    this->active_enable_disable_priority = active_priority;
+}
+
+static void to_json(json& j, const SessionInfo::Error& e) {
+    j = json{{"type", e.type}, {"description", e.description}, {"severity", e.severity}};
+}
+
 SessionInfo::operator std::string() {
     std::lock_guard<std::mutex> lock(this->session_info_mutex);
 
@@ -165,13 +248,31 @@ SessionInfo::operator std::string() {
     auto charging_duration_s =
         std::chrono::duration_cast<std::chrono::seconds>(this->end_time_point - this->start_time_point);
 
-    json session_info = json::object({{"state", this->state},
-                                      {"state_info", this->state_info},
-                                      {"charged_energy_wh", charged_energy_wh},
-                                      {"discharged_energy_wh", discharged_energy_wh},
-                                      {"latest_total_w", this->latest_total_w},
-                                      {"charging_duration_s", charging_duration_s.count()},
-                                      {"datetime", Everest::Date::to_rfc3339(now)}});
+    json session_info = json::object({
+        {"state", state_to_string(this->state)},
+        {"active_permanent_faults", this->active_permanent_faults},
+        {"active_errors", this->active_errors},
+        {"charged_energy_wh", charged_energy_wh},
+        {"discharged_energy_wh", discharged_energy_wh},
+        {"latest_total_w", this->latest_total_w},
+        {"charging_duration_s", charging_duration_s.count()},
+        {"datetime", Everest::Date::to_rfc3339(now)},
+
+    });
+
+    json active_disable_enable = json::object({{"source", this->active_enable_disable_source},
+                                               {"state", this->active_enable_disable_state},
+                                               {"priority", this->active_enable_disable_priority}});
+    session_info["active_enable_disable_source"] = active_disable_enable;
+
+    if (uk_random_delay_remaining.countdown_s > 0) {
+        json random_delay =
+            json::object({{"remaining_s", uk_random_delay_remaining.countdown_s},
+                          {"current_limit_after_delay_A", uk_random_delay_remaining.current_limit_after_delay_A},
+                          {"current_limit_during_delay_A", uk_random_delay_remaining.current_limit_during_delay_A},
+                          {"start_time", uk_random_delay_remaining.start_time.value_or("")}});
+        session_info["uk_random_delay"] = random_delay;
+    }
 
     return session_info.dump();
 }
@@ -194,7 +295,7 @@ void API::init() {
 
         std::string var_hw_caps = var_base + "hardware_capabilities";
         evse->subscribe_hw_capabilities(
-            [this, var_hw_caps, &hw_caps](types::board_support::HardwareCapabilities hw_capabilities) {
+            [this, var_hw_caps, &hw_caps](types::evse_board_support::HardwareCapabilities hw_capabilities) {
                 hw_caps = this->limit_decimal_places->limit(hw_capabilities);
                 this->mqtt.publish(var_hw_caps, hw_caps);
             });
@@ -217,7 +318,7 @@ void API::init() {
         });
 
         std::string var_telemetry = var_base + "telemetry";
-        evse->subscribe_telemetry([this, var_telemetry](types::board_support::Telemetry telemetry) {
+        evse->subscribe_telemetry([this, var_telemetry](types::evse_board_support::Telemetry telemetry) {
             this->mqtt.publish(var_telemetry, this->limit_decimal_places->limit(telemetry));
         });
 
@@ -252,12 +353,22 @@ void API::init() {
 
         evse->subscribe_session_event(
             [this, var_session_info, var_logging_path, &session_info](types::evse_manager::SessionEvent session_event) {
-                auto event = types::evse_manager::session_event_enum_to_string(session_event.event);
-                std::string state_info = "";
+                SessionInfo::Error error;
                 if (session_event.error.has_value()) {
-                    state_info = types::evse_manager::error_enum_to_string(session_event.error.value().error_code);
+                    error.type = types::evse_manager::error_enum_to_string(session_event.error.value().error_code);
+                    error.description = session_event.error.value().error_description;
+                    error.severity =
+                        types::evse_manager::error_severity_to_string(session_event.error.value().error_severity);
                 }
-                session_info->update_state(event, state_info);
+
+                session_info->update_state(session_event.event, error);
+
+                if (session_event.source.has_value()) {
+                    const auto source = session_event.source.value();
+                    session_info->set_enable_disable_source(
+                        types::evse_manager::enable_source_to_string(source.enable_source),
+                        types::evse_manager::enable_state_to_string(source.enable_state), source.enable_priority);
+                }
 
                 if (session_event.event == types::evse_manager::SessionEventEnum::SessionStarted) {
                     if (session_event.session_started.has_value()) {
@@ -301,34 +412,73 @@ void API::init() {
         // API commands
         std::string cmd_base = evse_base + "/cmd/";
 
-        std::string cmd_enable = cmd_base + "enable";
-        this->mqtt.subscribe(cmd_enable, [&evse](const std::string& data) {
+        std::string cmd_enable_disable = cmd_base + "enable_disable";
+        this->mqtt.subscribe(cmd_enable_disable, [&evse](const std::string& data) {
             auto connector_id = 0;
+            types::evse_manager::EnableDisableSource enable_source{types::evse_manager::Enable_source::LocalAPI,
+                                                                   types::evse_manager::Enable_state::Enable, 100};
+
             if (!data.empty()) {
                 try {
-                    connector_id = std::stoi(data);
+                    auto arg = json::parse(data);
+                    if (arg.contains("connector_id")) {
+                        connector_id = arg.at("connector_id");
+                    }
+                    if (arg.contains("source")) {
+                        enable_source.enable_source = types::evse_manager::string_to_enable_source(arg.at("source"));
+                    }
+                    if (arg.contains("state")) {
+                        enable_source.enable_state = types::evse_manager::string_to_enable_state(arg.at("state"));
+                    }
+                    if (arg.contains("priority")) {
+                        enable_source.enable_priority = arg.at("priority");
+                    }
+
                 } catch (const std::exception& e) {
-                    EVLOG_error << "Could not parse connector id for enable connector, ignoring command, error: "
-                                << e.what();
-                    return;
+                    EVLOG_error << "enable: Cannot parse argument, command ignored: " << e.what();
                 }
+            } else {
+                EVLOG_error << "enable: No argument specified, ignoring command";
             }
-            evse->call_enable(connector_id);
+            evse->call_enable_disable(connector_id, enable_source);
         });
 
         std::string cmd_disable = cmd_base + "disable";
         this->mqtt.subscribe(cmd_disable, [&evse](const std::string& data) {
             auto connector_id = 0;
+            types::evse_manager::EnableDisableSource enable_source{types::evse_manager::Enable_source::LocalAPI,
+                                                                   types::evse_manager::Enable_state::Disable, 100};
+
             if (!data.empty()) {
                 try {
                     connector_id = std::stoi(data);
+                    EVLOG_warning << "disable: Argument is an integer, using deprecated compatibility mode";
                 } catch (const std::exception& e) {
-                    EVLOG_error << "Could not parse connector id for disable connector, ignoring command, error: "
-                                << e.what();
-                    return;
+                    EVLOG_error << "disable: Cannot parse argument, ignoring command";
                 }
+            } else {
+                EVLOG_error << "disable: No argument specified, ignoring command";
             }
-            evse->call_disable(connector_id);
+            evse->call_enable_disable(connector_id, enable_source);
+        });
+
+        std::string cmd_enable = cmd_base + "enable";
+        this->mqtt.subscribe(cmd_enable, [&evse](const std::string& data) {
+            auto connector_id = 0;
+            types::evse_manager::EnableDisableSource enable_source{types::evse_manager::Enable_source::LocalAPI,
+                                                                   types::evse_manager::Enable_state::Enable, 100};
+
+            if (!data.empty()) {
+                try {
+                    connector_id = std::stoi(data);
+                    EVLOG_warning << "disable: Argument is an integer, using deprecated compatibility mode";
+                } catch (const std::exception& e) {
+                    EVLOG_error << "disable: Cannot parse argument, ignoring command";
+                }
+            } else {
+                EVLOG_error << "disable: No argument specified, ignoring command";
+            }
+            evse->call_enable_disable(connector_id, enable_source);
         });
 
         std::string cmd_pause_charging = cmd_base + "pause_charging";
@@ -377,17 +527,60 @@ void API::init() {
             }
             evse->call_force_unlock(connector_id); //
         });
+
+        // Check if a uk_random_delay is connected that matches this evse_manager
+        for (auto& random_delay : this->r_random_delay) {
+            if (random_delay->module_id == evse->module_id) {
+
+                random_delay->subscribe_countdown([&session_info](const types::uk_random_delay::CountDown& s) {
+                    session_info->set_uk_random_delay_remaining(s);
+                });
+
+                std::string cmd_uk_random_delay = cmd_base + "uk_random_delay";
+                this->mqtt.subscribe(cmd_uk_random_delay, [&random_delay](const std::string& data) {
+                    if (data == "enable") {
+                        random_delay->call_enable();
+                    } else if (data == "disable") {
+                        random_delay->call_disable();
+                    } else if (data == "cancel") {
+                        random_delay->call_cancel();
+                    }
+                });
+
+                std::string uk_random_delay_set_max_duration_s = cmd_base + "uk_random_delay_set_max_duration_s";
+                this->mqtt.subscribe(uk_random_delay_set_max_duration_s, [&random_delay](const std::string& data) {
+                    int seconds = 600;
+                    try {
+                        seconds = std::stoi(data);
+                    } catch (const std::exception& e) {
+                        EVLOG_error
+                            << "Could not parse connector duration value for uk_random_delay_set_max_duration_s: "
+                            << e.what();
+                    }
+                    random_delay->call_set_duration_s(seconds);
+                });
+            }
+        }
     }
 
     std::string var_ocpp_connection_status = api_base + "ocpp/var/connection_status";
+    std::string var_ocpp_schedule = api_base + "ocpp/var/charging_schedules";
 
     if (this->r_ocpp.size() == 1) {
+
         this->r_ocpp.at(0)->subscribe_is_connected([this](bool is_connected) {
+            std::scoped_lock lock(ocpp_data_mutex);
             if (is_connected) {
                 this->ocpp_connection_status = "connected";
             } else {
                 this->ocpp_connection_status = "disconnected";
             }
+        });
+
+        this->r_ocpp.at(0)->subscribe_charging_schedules([this, &var_ocpp_schedule](json schedule) {
+            std::scoped_lock lock(ocpp_data_mutex);
+            this->ocpp_charging_schedule = schedule;
+            this->ocpp_charging_schedule_updated = true;
         });
     }
 
@@ -404,18 +597,28 @@ void API::init() {
         }
     }
 
-    this->api_threads.push_back(std::thread([this, var_connectors, connectors, var_info, var_ocpp_connection_status]() {
-        auto next_tick = std::chrono::steady_clock::now();
-        while (this->running) {
-            json connectors_array = connectors;
-            this->mqtt.publish(var_connectors, connectors_array.dump());
-            this->mqtt.publish(var_info, this->charger_information.dump());
-            this->mqtt.publish(var_ocpp_connection_status, this->ocpp_connection_status);
+    this->api_threads.push_back(
+        std::thread([this, var_connectors, connectors, var_info, var_ocpp_connection_status, var_ocpp_schedule]() {
+            auto next_tick = std::chrono::steady_clock::now();
+            while (this->running) {
+                json connectors_array = connectors;
+                this->mqtt.publish(var_connectors, connectors_array.dump());
+                if (not this->charger_information.is_null()) {
+                    this->mqtt.publish(var_info, this->charger_information.dump());
+                }
+                {
+                    std::scoped_lock lock(ocpp_data_mutex);
+                    this->mqtt.publish(var_ocpp_connection_status, this->ocpp_connection_status);
+                    if (this->ocpp_charging_schedule_updated) {
+                        this->ocpp_charging_schedule_updated = false;
+                        this->mqtt.publish(var_ocpp_schedule, ocpp_charging_schedule.dump());
+                    }
+                }
 
-            next_tick += NOTIFICATION_PERIOD;
-            std::this_thread::sleep_until(next_tick);
-        }
-    }));
+                next_tick += NOTIFICATION_PERIOD;
+                std::this_thread::sleep_until(next_tick);
+            }
+        }));
 }
 
 void API::ready() {

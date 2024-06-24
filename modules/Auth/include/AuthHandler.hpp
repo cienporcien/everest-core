@@ -48,7 +48,7 @@ class AuthHandler {
 
 public:
     AuthHandler(const SelectionAlgorithm& selection_algorithm, const int connection_timeout,
-                bool prioritize_authorization_over_stopping_transaction);
+                bool prioritize_authorization_over_stopping_transaction, bool ignore_connector_faults);
     virtual ~AuthHandler();
 
     /**
@@ -117,6 +117,13 @@ public:
     void set_connection_timeout(const int connection_timeout);
 
     /**
+     * @brief Set the master pass group id of the handler.
+     *
+     * @param master_pass_group_id
+     */
+    void set_master_pass_group_id(const std::string& master_pass_group_id);
+
+    /**
      * @brief Set the prioritize authorization over stopping transaction flag of the handler.
      *
      * @param b
@@ -180,7 +187,9 @@ public:
 private:
     SelectionAlgorithm selection_algorithm;
     int connection_timeout;
+    std::optional<std::string> master_pass_group_id;
     bool prioritize_authorization_over_stopping_transaction;
+    bool ignore_faults;
     ReservationHandler reservation_handler;
 
     std::map<int, std::unique_ptr<ConnectorContext>> connectors;
@@ -210,6 +219,7 @@ private:
     int used_for_transaction(const std::vector<int>& connectors, const std::string& id_token);
     bool is_token_already_in_process(const std::string& id_token, const std::vector<int>& referenced_connectors);
     bool any_connector_available(const std::vector<int>& connectors);
+    bool equals_master_pass_group_id(const std::optional<types::authorization::IdToken> parent_id_token);
 
     TokenHandlingResult handle_token(const ProvidedIdToken& provided_token);
 

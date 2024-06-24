@@ -1,17 +1,9 @@
 description: A OCPP charge point / charging station module for OCPP 2.0.1
 config:
-  ChargePointConfigPath:
-    description: Path to the configuration file
-    type: string
-    default: ocpp-config.json
   MessageLogPath:
     description: Path to folder where logs of all OCPP messages get written to
     type: string
     default: /tmp/everest_ocpp_logs
-  CertsPath:
-    description: Path to folder where certificates are located. If empty uses everest prefix + etc/everest/certs
-    type: string
-    default: ""
   CoreDatabasePath:
     description: Path to the persistent SQLite database folder
     type: string
@@ -24,6 +16,10 @@ config:
     description: If true websocket can be disconnected and connected externally
     type: boolean
     default: false
+  MessageQueueResumeDelay:
+    description: Time (seconds) to delay resuming the message queue after reconnecting
+    type: integer
+    default: 0
 provides:
   main:
     description: This is a OCPP 2.0.1 charge point
@@ -37,6 +33,9 @@ provides:
   data_transfer:
     description: OCPP data transfer towards the CSMS
     interface: ocpp_data_transfer
+  ocpp_generic:
+    description: Generic OCPP interface.
+    interface: ocpp
 requires:
   evse_manager:
     interface: evse_manager
@@ -50,13 +49,13 @@ requires:
     interface: evse_security
     min_connections: 1
     max_connections: 1
-  kvs:
-    interface: kvs
-    min_connections: 1
-    max_connections: 1
   data_transfer:
     interface: ocpp_data_transfer
     min_connections: 0
+    max_connections: 1
+  auth:
+    interface: auth
+    min_connections: 1
     max_connections: 1
 enable_external_mqtt: true
 metadata:

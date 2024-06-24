@@ -42,22 +42,24 @@ protected:
     virtual types::evse_security::InstallCertificateResult
     handle_update_leaf_certificate(std::string& certificate_chain,
                                    types::evse_security::LeafCertificateType& certificate_type) override;
-    virtual types::evse_security::InstallCertificateResult
+    virtual types::evse_security::CertificateValidationResult
     handle_verify_certificate(std::string& certificate_chain,
                               types::evse_security::LeafCertificateType& certificate_type) override;
     virtual types::evse_security::GetInstalledCertificatesResult
     handle_get_installed_certificates(std::vector<types::evse_security::CertificateType>& certificate_types) override;
-    virtual types::evse_security::OCSPRequestDataList handle_get_ocsp_request_data() override;
+    virtual types::evse_security::OCSPRequestDataList handle_get_v2g_ocsp_request_data() override;
+    virtual types::evse_security::OCSPRequestDataList
+    handle_get_mo_ocsp_request_data(std::string& certificate_chain) override;
     virtual void handle_update_ocsp_cache(types::evse_security::CertificateHashData& certificate_hash_data,
                                           std::string& ocsp_response) override;
     virtual bool handle_is_ca_certificate_installed(types::evse_security::CaCertificateType& certificate_type) override;
-    virtual std::string
+    virtual types::evse_security::GetCertificateSignRequestResult
     handle_generate_certificate_signing_request(types::evse_security::LeafCertificateType& certificate_type,
-                                                std::string& country, std::string& organization,
-                                                std::string& common) override;
-    virtual types::evse_security::GetKeyPairResult
-    handle_get_key_pair(types::evse_security::LeafCertificateType& certificate_type,
-                        types::evse_security::EncodingFormat& encoding) override;
+                                                std::string& country, std::string& organization, std::string& common,
+                                                bool& use_tpm) override;
+    virtual types::evse_security::GetCertificateInfoResult
+    handle_get_leaf_certificate_info(types::evse_security::LeafCertificateType& certificate_type,
+                                     types::evse_security::EncodingFormat& encoding, bool& include_ocsp) override;
     virtual std::string handle_get_verify_file(types::evse_security::CaCertificateType& certificate_type) override;
     virtual int handle_get_leaf_expiry_days_count(types::evse_security::LeafCertificateType& certificate_type) override;
     virtual bool handle_verify_file_signature(std::string& file_path, std::string& signing_certificate,

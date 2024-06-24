@@ -15,6 +15,9 @@ target_sources(${MODULE_NAME}
         SessionLog.cpp
         v2gMessage.cpp
         CarManufacturer.cpp
+        IECStateMachine.cpp
+        ErrorHandling.cpp
+        backtrace.cpp
 )
 
 target_link_libraries(${MODULE_NAME}
@@ -30,6 +33,16 @@ target_link_libraries(${MODULE_NAME}
 )
 endif()
 
+target_compile_options(${MODULE_NAME}
+PRIVATE
+    "-rdynamic"
+)
+
+target_link_options(${MODULE_NAME}
+PRIVATE
+    "-rdynamic"
+)
+
 # needed for std::filesystem
 target_compile_features(${MODULE_NAME} PUBLIC cxx_std_17)
 # ev@bcc62523-e22b-41d7-ba2f-825b493a3c97:v1
@@ -39,8 +52,12 @@ target_sources(${MODULE_NAME}
         "evse/evse_managerImpl.cpp"
         "energy_grid/energyImpl.cpp"
         "token_provider/auth_token_providerImpl.cpp"
+        "random_delay/uk_random_delayImpl.cpp"
 )
 
 # ev@c55432ab-152c-45a9-9d2e-7281d50c69c3:v1
 # insert other things like install cmds etc here
+if(EVEREST_CORE_BUILD_TESTING)
+    add_subdirectory(tests)
+endif()
 # ev@c55432ab-152c-45a9-9d2e-7281d50c69c3:v1

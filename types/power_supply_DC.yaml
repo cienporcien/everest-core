@@ -93,24 +93,3 @@ types:
         type: number
         minimum: 0.0
         maximum: 1.0
-  FaultCode:
-    description: Fault codes
-    type: string
-    enum:
-      - CommunicationFailure
-      - ConfigurationError
-      - HardwareFault
-      - OverTemperature
-      - UnderTemperature
-      - UnderVoltageAC
-      - OverVoltageAC
-      - UnderVoltageDC
-      - OverVoltageDC
-      - UnderVoltageBattery
-      - OverVoltageBattery
-      - OverCurrentAC
-      - OverCurrentBattery
-      - OverCurrentDC
-      - WrongCabling
-      - Other
-      - NoError

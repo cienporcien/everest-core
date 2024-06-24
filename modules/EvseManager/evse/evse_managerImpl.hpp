@@ -35,8 +35,8 @@ public:
 protected:
     // command handler functions (virtual)
     virtual types::evse_manager::Evse handle_get_evse() override;
-    virtual bool handle_enable(int& connector_id) override;
-    virtual bool handle_disable(int& connector_id) override;
+    virtual bool handle_enable_disable(int& connector_id,
+                                       types::evse_manager::EnableDisableSource& cmd_source) override;
     virtual void handle_authorize_response(types::authorization::ProvidedIdToken& provided_token,
                                            types::authorization::ValidationResult& validation_result) override;
     virtual void handle_withdraw_authorization() override;
@@ -52,6 +52,7 @@ protected:
     handle_switch_three_phases_while_charging(bool& three_phases) override;
     virtual void handle_set_get_certificate_response(
         types::iso15118_charger::Response_Exi_Stream_Status& certificate_response) override;
+    virtual bool handle_external_ready_to_start_charging() override;
 
     // ev@d2d1847a-7b88-41dd-ad07-92785f06f5c4:v1
     // insert your protected definitions here
@@ -68,11 +69,6 @@ private:
     // insert your private definitions here
     std::atomic_bool connector_status_changed{false};
     types::evse_manager::Limits limits;
-
-    std::string generate_session_uuid();
-    void set_session_uuid();
-
-    std::string session_uuid;
     // ev@3370e4dd-95f4-47a9-aaec-ea76f34a66c9:v1
 };
 

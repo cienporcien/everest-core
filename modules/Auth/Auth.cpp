@@ -12,9 +12,9 @@ void Auth::init() {
     invoke_init(*p_main);
     invoke_init(*p_reservation);
 
-    this->auth_handler = std::make_unique<AuthHandler>(string_to_selection_algorithm(this->config.selection_algorithm),
-                                                       this->config.connection_timeout,
-                                                       this->config.prioritize_authorization_over_stopping_transaction);
+    this->auth_handler = std::make_unique<AuthHandler>(
+        string_to_selection_algorithm(this->config.selection_algorithm), this->config.connection_timeout,
+        this->config.prioritize_authorization_over_stopping_transaction, this->config.ignore_connector_faults);
 
     for (const auto& token_provider : this->r_token_provider) {
         token_provider->subscribe_provided_token([this](ProvidedIdToken provided_token) {
@@ -70,6 +70,10 @@ void Auth::ready() {
 
 void Auth::set_connection_timeout(int& connection_timeout) {
     this->auth_handler->set_connection_timeout(connection_timeout);
+}
+
+void Auth::set_master_pass_group_id(const std::string& master_pass_group_id) {
+    this->auth_handler->set_master_pass_group_id(master_pass_group_id);
 }
 
 } // namespace module

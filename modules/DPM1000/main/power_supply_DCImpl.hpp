@@ -35,7 +35,6 @@ public:
 
 protected:
     // command handler functions (virtual)
-    virtual types::power_supply_DC::Capabilities handle_getCapabilities() override;
     virtual void handle_setMode(types::power_supply_DC::Mode& value) override;
     virtual void handle_setExportVoltageCurrent(double& voltage, double& current) override;
     virtual void handle_setImportVoltageCurrent(double& voltage, double& current) override;
@@ -62,6 +61,7 @@ private:
     float config_min_voltage_limit{50.};
 
     Everest::Gpio discharge_gpio;
+    bool parallel_mode{false};
     // ev@3370e4dd-95f4-47a9-aaec-ea76f34a66c9:v1
 };
 
