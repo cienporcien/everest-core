@@ -1,0 +1,16 @@
+description: Interface PPD (Pairing and Positioning Device) for ISO 15118-20 Automatic Connection Devices Pantograph (ACDP)
+#   cmds:
+#     start:
+#       description: >-
+#         Start recurring distance measurements. The device should monitor
+#         the distance until stopped and publish the resistance data in regular
+#         intervals. The actual interval is device dependent.
+#     stop:
+#       description: >-
+#         Stop recurring measurements. The device should stop to monitor the
+#         distance and stop publishing the data.
+vars:
+  PositionMeasurement:
+    description: Position of the Vehicle PPD Counterpart with respect to this PPD in cm
+    type: object
+    $ref: /pairing_and_positioning#/Position

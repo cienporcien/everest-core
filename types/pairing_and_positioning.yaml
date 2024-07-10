@@ -1,0 +1,20 @@
+description: Types for interface PPD Pairing and Positioning Device for ISO 15118-20 Automatic Connection Devices Pantograph ACDP
+types:
+  Position:
+    description: Position of the Vehicle PPD Counterpart with respect to this PPD in cm in the X, Y and Z direction.
+    type: object
+    additionalProperties: false
+    required:
+      - position_X
+      - position_Y
+      - position_Z
+    properties:
+      position_X:
+        description: Relative position of Vehicle PPD Counterpart perpendicular to driving direction
+        type: number
+      position_Y:
+        description: Relative position of Vehicle PPD Counterpart parallel to driving direction
+        type: number
+      position_Z:
+        description: Relative position of Vehicle PPD Counterpart vertically
+        type: number
