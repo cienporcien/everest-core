@@ -31,11 +31,42 @@ config:
     description: Verbosely log the ssl/tls connection
     type: boolean
     default: false
+  communications_pairing_space_xmin:
+    description: The xmin in cm of the 2d rectangle that describes the area where the UWB is considered to be sufficiently in position to start communicating with this EVSE
+    type: number
+    default: -500.0
+  communications_pairing_space_xmax:
+    description: The xmax in cm of the 2d rectangle that describes the area where the UWB is considered to be sufficiently in position to start communicating with this EVSE
+    type: number
+    default: 100.0
+  communications_pairing_space_ymin:
+    description: The ymin in cm of the 2d rectangle that describes the area where the UWB is considered to be sufficiently in position to start communicating with this EVSE
+    type: number
+    default: -150.0
+  communications_pairing_space_ymax:
+    description: The ymax in cm of the 2d rectangle that describes the area where the UWB is considered to be sufficiently in position to start communicating with this EVSE
+    type: number
+    default: 150.0
+  acdp_contact_window_xc:
+    description: The length of the contact window in the driving direction of the ACDP in cm
+    type: number
+    default: 30.0
+  acdp_contact_window_yc:
+    description: The width of the contact window perpendicular to the driving direction of the ACDP in cm
+    type: number
+    default: 30.0
+  acdp_evse_positioning_support:
+    description: Whether the infrastructure supplies positioning support
+    type: boolean
+    default: true
 provides:
   charger:
     interface: ISO15118_charger
     description: >-
       This interface provides limited access to iso15118-20
+requires: # list of interface requirements
+  PPD: # requirement ID: ISO 15118-20 ACDP requires a PPD
+    interface: pairing_and_positioning # interface name
 enable_external_mqtt: true
 metadata:
   license: https://opensource.org/licenses/Apache-2.0

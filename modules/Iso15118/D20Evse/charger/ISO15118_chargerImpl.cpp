@@ -122,6 +122,44 @@ void ISO15118_chargerImpl::init() {
     };
 
     controller = std::make_unique<iso15118::TbdController>(tbd_config, callbacks);
+
+    // RDB subscribe to the position info from the PPD
+
+    mod->r_PPD->subscribe_PositionMeasurement([this](types::pairing_and_positioning::Position uwb_position) {
+        // Received UWB position values. Check if the UWB of the vehicle is within the Communications Pairing Space
+        // (CPS) in Config. If so, Send the result over to the TbdController. Note that if the position is -100.0
+        // cm, then the PPD is not receiving any signal from vehicle UWB. This can be treated the same as not within
+        // the CPS. Also, ignore any readings with negative distance.
+        if (uwb_position.position_X >= mod->config.communications_pairing_space_xmin &&
+            uwb_position.position_X <= mod->config.communications_pairing_space_xmax &&
+            uwb_position.position_Y >= mod->config.communications_pairing_space_ymin &&
+            uwb_position.position_Y <= mod->config.communications_pairing_space_ymax &&
+            uwb_position.position_Z >= 0.0) {
+            controller->Is_PPD_in_CPS = true;
+        } else {
+            controller->Is_PPD_in_CPS = false;
+        }
+
+        // Calculate if the ev is in position
+        bool ev_in_charge_position = false;
+
+        if (uwb_position.position_X >= -mod->config.acdp_contact_window_xc &&
+            uwb_position.position_X <= mod->config.acdp_contact_window_xc &&
+            uwb_position.position_Y >= -mod->config.acdp_contact_window_yc &&
+            uwb_position.position_Y <= mod->config.acdp_contact_window_yc && uwb_position.position_Z >= 0.0) {
+            ev_in_charge_position = true;
+        }
+
+        // Also send a control event so that the vehicle positioning state handler gets it as well.
+        // but only if the position info is good, though we probably need to send a control event if the PPD
+        // signal is lost.
+        if (uwb_position.position_Z >= 0.0) {
+            controller->send_control_event(iso15118::d20::PresentVehiclePosition{
+                mod->config.acdp_evse_positioning_support, (short)uwb_position.position_X,
+                (short)uwb_position.position_Y, (short)mod->config.acdp_contact_window_xc,
+                (short)mod->config.acdp_contact_window_yc, ev_in_charge_position});
+        }
+    });
 }
 
 void ISO15118_chargerImpl::ready() {

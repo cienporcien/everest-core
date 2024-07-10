@@ -13,6 +13,9 @@
 // headers for provided interface implementations
 #include <generated/interfaces/ISO15118_charger/Implementation.hpp>
 
+// headers for required interface implementations
+#include <generated/interfaces/pairing_and_positioning/Interface.hpp>
+
 // ev@4bf81b14-a215-475c-a1d3-0a484ae48918:v1
 // insert your custom include headers here
 // ev@4bf81b14-a215-475c-a1d3-0a484ae48918:v1
@@ -26,17 +29,30 @@ struct Conf {
     std::string tls_negotiation_strategy;
     std::string private_key_password;
     bool enable_ssl_logging;
+    double communications_pairing_space_xmin;
+    double communications_pairing_space_xmax;
+    double communications_pairing_space_ymin;
+    double communications_pairing_space_ymax;
+    double acdp_contact_window_xc;
+    double acdp_contact_window_yc;
+    bool acdp_evse_positioning_support;
 };
 
 class D20Evse : public Everest::ModuleBase {
 public:
     D20Evse() = delete;
     D20Evse(const ModuleInfo& info, Everest::MqttProvider& mqtt_provider,
-            std::unique_ptr<ISO15118_chargerImplBase> p_charger, Conf& config) :
-        ModuleBase(info), mqtt(mqtt_provider), p_charger(std::move(p_charger)), config(config){};
+            std::unique_ptr<ISO15118_chargerImplBase> p_charger, std::unique_ptr<pairing_and_positioningIntf> r_PPD,
+            Conf& config) :
+        ModuleBase(info),
+        mqtt(mqtt_provider),
+        p_charger(std::move(p_charger)),
+        r_PPD(std::move(r_PPD)),
+        config(config){};
 
     Everest::MqttProvider& mqtt;
     const std::unique_ptr<ISO15118_chargerImplBase> p_charger;
+    const std::unique_ptr<pairing_and_positioningIntf> r_PPD;
     const Conf& config;
 
     // ev@1fce4c5e-0ab8-41bb-90f7-14277703d2ac:v1
