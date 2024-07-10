@@ -13,6 +13,9 @@
 // headers for provided interface implementations
 #include <generated/interfaces/ISO15118_charger/Implementation.hpp>
 
+// headers for required interface implementations
+#include <generated/interfaces/pairing_and_positioning/Interface.hpp>
+
 // ev@4bf81b14-a215-475c-a1d3-0a484ae48918:v1
 // insert your custom include headers here
 // ev@4bf81b14-a215-475c-a1d3-0a484ae48918:v1
@@ -28,6 +31,13 @@ struct Conf {
     bool enable_ssl_logging;
     bool enable_tls_key_logging;
     bool enable_sdp_server;
+    double communications_pairing_space_xmin;
+    double communications_pairing_space_xmax;
+    double communications_pairing_space_ymin;
+    double communications_pairing_space_ymax;
+    double acdp_contact_window_xc;
+    double acdp_contact_window_yc;
+    bool acdp_evse_positioning_support;
 };
 
 class Evse15118D20 : public Everest::ModuleBase {
@@ -37,6 +47,7 @@ public:
         ModuleBase(info), p_charger(std::move(p_charger)), config(config){};
 
     const std::unique_ptr<ISO15118_chargerImplBase> p_charger;
+    const std::unique_ptr<pairing_and_positioningIntf> r_PPD;
     const Conf& config;
 
     // ev@1fce4c5e-0ab8-41bb-90f7-14277703d2ac:v1
