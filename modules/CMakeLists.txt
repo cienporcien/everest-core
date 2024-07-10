@@ -34,6 +34,9 @@ ev_add_module(DummyTokenProvider)
 ev_add_module(DummyTokenProviderManual)
 ev_add_module(PhyVersoBSP)
 
+ev_add_module(CbexiEV)
+ev_add_module(UWBPPD)
+
 add_subdirectory(Iso15118)
 
 add_subdirectory(examples)
