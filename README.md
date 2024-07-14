@@ -158,6 +158,9 @@ Tested on a clean Raspberry Pi 5, 4gb RAM
 sudo apt update
 sudo apt install -y python3-pip git rsync wget cmake doxygen graphviz build-essential clang-tidy cppcheck openjdk-17-jdk npm docker docker-compose libboost-all-dev nodejs libssl-dev libsqlite3-dev clang-format curl rfkill libpcap-dev libevent-dev pkg-config libcap-dev
 
+# The UWBPPD uses libserial - install this (should be in dependencies, but isn't yet)
+sudo apt install libserial-dev
+
 # Create a checkout directory in home
 mkdir checkout
 cd checkout
@@ -201,4 +204,25 @@ cmake ..
 # make -j$(nproc) install
 # Note: on a 4gb rpi, using all 4 cores causes raspian to crash eventually, so use this instead though it takes much longer:
 make install 
+
+# for testing, we need everest-utils
+cd ~/checkout
+git clone https://github.com/EVerest/everest-utils.git
+
+# start up the docker container for mqtt
+cd ~/checkout/everest-utils/docker
+sudo docker-compose up -d mqtt-server
+
+# Start up nodered to see the progress of the charging visually
+cd ~/checkout/everest_exi/everest-core/build/run-scripts
+sudo sh nodered-sil-dc.sh
+
+# In a browser:
+http://localhost:1880/ui/
+
+# Start up a new terminal. Run the charger and the ev together.
+# It will run automatically, you don't have to click on anything in the browser.
+cd ~/checkout/everest_exi/everest-core/build/dist
+./bin/manager --config config-dash-20-sil-EV20
+
 
