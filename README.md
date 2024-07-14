@@ -150,3 +150,55 @@ to use all available CPU cores.
 Be aware that this will need roughly an additional 1-2GB of RAM per core.
 Alternatively you can also use any number between 2 and your maximum core count instead of *$(nproc)*.
 
+RDB:
+To build both sides (EV and EVSE) of the ACDP implementation, you can do the following:
+Tested on a clean Raspberry Pi 5, 4gb RAM
+
+# Install the dev tools you need
+sudo apt update
+sudo apt install -y python3-pip git rsync wget cmake doxygen graphviz build-essential clang-tidy cppcheck openjdk-17-jdk npm docker docker-compose libboost-all-dev nodejs libssl-dev libsqlite3-dev clang-format curl rfkill libpcap-dev libevent-dev pkg-config libcap-dev
+
+# Create a checkout directory in home
+mkdir checkout
+cd checkout
+
+# Install the Everest Dependency Manager
+git clone https://github.com/EVerest/everest-dev-environment
+cd everest-dev-environment/dependency_manager
+# Has to be sudo, otherwise it won't install correctly
+sudo python3 -m pip install .
+# If you get the dreaded "error: externally-managed-environment", you can do this hack, though apparently not recommended
+sudo python3 -m pip install . --break-system-packages
+
+# Create a new folder under checkout, i.e. everest_exi
+# cd to that directory
+cd everest_exi
+
+# Clone everest-core from the fork in cienporcien/everest-core
+git clone https://github.com/cienporcien/everest-core.git
+
+# Clone the forked libiso15118 from cienporcien/libiso15118
+git clone https://github.com/cienporcien/libiso15118.git
+
+# Clone the evlibiso15118 from cienporcien/evlibiso15118
+git clone https://github.com/cienporcien/evlibiso15118.git
+
+# Select the correct branches for ACDP
+cd everest-core
+git checkout testing/iso15118-20-ACDP
+cd ../libiso15118
+git checkout dash-20-poc-acdp
+cd ../evlibiso15118
+git checkout evlibiso15118_with_ACDP
+
+# From here build. There are two ways, with vscode (using ninja) or continue in a command line (using make)
+# From the command line:
+cd ../everest-core
+mkdir build
+cd build
+cmake ..
+# if you have plenty of RAM, make using -j to build faster:
+# make -j$(nproc) install
+# Note: on a 4gb rpi, using all 4 cores causes raspian to crash eventually, so use this instead though it takes much longer:
+make install 
+
