@@ -202,7 +202,7 @@ cd build
 cmake ..
 # if you have plenty of RAM, make using -j to build faster:
 # make -j$(nproc) install
-# Note: on a 4gb rpi, using all 4 cores causes raspian to crash eventually, so use this instead though it takes much longer:
+# Note: on a 4gb rpi, using all 4 cores causes Raspbian (Raspberry Pi OS) to crash eventually, so use this instead though it takes much longer:
 make install 
 
 # for testing, we need everest-utils
@@ -210,6 +210,8 @@ cd ~/checkout
 git clone https://github.com/EVerest/everest-utils.git
 
 # start up the docker container for mqtt
+# note, you may need to run this first:
+# docker network create --driver bridge --ipv6  --subnet fd00::/80 infranet_network --attachablels
 cd ~/checkout/everest-utils/docker
 sudo docker-compose up -d mqtt-server
 

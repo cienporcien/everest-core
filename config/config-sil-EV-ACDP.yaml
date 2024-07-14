@@ -1,0 +1,35 @@
+active_modules:
+  iso15118_car:
+    module: CbexiEV
+    config_module:
+      device: wlan0
+      supported_DIN70121: true
+      supported_ISO15118_2: true
+      supported_ISO15118_20_DC: true
+      tls_active: false
+  yeti_driver:
+    module: JsYetiSimulator
+    config_module:
+      connector_id: 1
+  slac:
+    module: JsSlacSimulator
+  ev_manager:
+    module: JsEvManager
+    config_module:
+      connector_id: 1
+      auto_enable: true
+      auto_exec: false
+      auto_exec_commands: sleep 3;iso_wait_slac_matched;iso_start_v2g_session DC;iso_wait_pwr_ready;iso_wait_for_stop 15;iso_wait_v2g_session_stopped;unplug;
+      dc_target_current: 20
+      dc_target_voltage: 400
+    connections:
+      ev_board_support:
+        - module_id: yeti_driver
+          implementation_id: ev_board_support
+      ev:
+        - module_id: iso15118_car
+          implementation_id: ev
+      slac:
+        - module_id: slac
+          implementation_id: ev
+x-module-layout: {}
