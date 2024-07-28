@@ -63,9 +63,12 @@ function set_matched_ev(mod) {
 function simulation_loop(mod) {
   // if both are in matching for 2 seconds SLAC matches
   cntmatching += 1;
-  if (state_ev === STATE_MATCHING && state_evse === STATE_MATCHING && cntmatching > 2 * 4) {
+  //if (state_ev === STATE_MATCHING && state_evse === STATE_MATCHING && cntmatching > 2 * 4) {
+  //RDB If just the ev side, then only monitor state_ev
+  if (state_ev === STATE_MATCHING && cntmatching > 2 * 4) {
+    //RDB if running only on the ev side, just message the ev, not the evse.
     set_matched_ev(mod);
-    set_matched_evse(mod);
+    //set_matched_evse(mod);
   }
 }
 

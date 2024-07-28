@@ -218,7 +218,7 @@ cd ~/checkout/everest-utils/docker
 sudo docker-compose up -d mqtt-server
 
 # Start up nodered to see the progress of the charging visually
-cd ~/checkout/everest_exi/everest-core/build/run-scripts
+cd ~/checkout/everest_exi_ev/everest-core/build/run-scripts
 sudo sh nodered-sil-dc.sh
 
 # In a browser:
@@ -229,4 +229,76 @@ http://localhost:1880/ui/
 cd ~/checkout/everest_exi/everest-core/build/dist
 ./bin/manager --config config-dash-20-sil-EV20
 
+For debugging js, use the following
 
+
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "JsEvManager",
+            "program": "/home/evcc/checkout/everest_exi_ev/everest-core/build/dist/libexec/everest/modules/JsEvManager/index.js",
+            "request": "launch",
+            "cwd": "/home/evcc/checkout/everest_exi_ev",
+            "skipFiles": [
+                "<node_internals>/**"
+            ],
+            "env":{
+                "NODE_PATH": "/home/evcc/checkout/everest_exi_ev/everest-core/build/dist/lib/everest/node_modules/",
+                "EV_MODULE": "ev_manager",
+                "EV_PREFIX": "/home/evcc/checkout/everest_exi_ev/everest-core/build/dist/",
+                "EV_CONF_FILE": "config-sil-EV-ACDP"
+            },
+            "type": "node"
+        },
+        {
+            "name": "JsSlacSimulator",
+            "program": "/home/evcc/checkout/everest_exi_ev/everest-core/build/dist/libexec/everest/modules/JsSlacSimulator/index.js",
+            "request": "launch",
+            "cwd": "/home/evcc/checkout/everest_exi_ev",
+            "skipFiles": [
+                "<node_internals>/**"
+            ],
+            "env":{
+                "NODE_PATH": "/home/evcc/checkout/everest_exi_ev/everest-core/build/dist/lib/everest/node_modules/",
+                "EV_MODULE": "slac",
+                "EV_PREFIX": "/home/evcc/checkout/everest_exi_ev/everest-core/build/dist/",
+                "EV_CONF_FILE": "config-sil-EV-ACDP"
+            },
+            "type": "node"
+        },
+        {
+            "name": "CbexiEV",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "/home/evcc/checkout/everest_exi_ev/everest-core/build/modules/CbexiEV/CbexiEV",
+            "args": [
+                "--config",
+                "config-sil-EV-ACDP",
+                "--module",
+                "iso15118_car"
+            ],
+            "stopAtEntry": false,
+            "cwd": "/home/evcc/checkout/everest_exi_ev",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                },
+                {
+                    "description": "Set Disassembly Flavor to Intel",
+                    "text": "-gdb-set disassembly-flavor intel",
+                    "ignoreFailures": true
+                },
+                { "text": "set output-radix 16" }
+            ]
+        }
+    ]
+}
