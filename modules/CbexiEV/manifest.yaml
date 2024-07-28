@@ -1,5 +1,5 @@
 description: >-
-  This module implements an DIN70121 (tbd), ISO15118-2 and ISO15118-20 EV using the the C++ library evlibiso15118.
+  This module implements an DIN70121 (tbd), ISO15118-2 (tbd) and ISO15118-20 EV using the the C++ library evlibiso15118.
 config:
   device:
     description: >-
