@@ -38,6 +38,8 @@ ev_add_module(PhyVersoBSP)
 
 ev_add_module(CbexiEV)
 ev_add_module(UWBPPD)
+ev_add_module(Ev15118D8)
+ev_add_module(Evse15118D8)
 
 add_subdirectory(Iso15118)
 

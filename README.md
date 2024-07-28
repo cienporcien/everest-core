@@ -219,6 +219,8 @@ git checkout evlibiso15118_with_ACDP
 
 # From here build. There are two ways, with vscode (using ninja) or continue in a command line (using make)
 # From the command line:
+# To get debug symbols in the executable for debugging later, add this line:
+export CMAKE_BUILD_TYPE=Debug
 cd ../everest-core
 mkdir build
 cd build
