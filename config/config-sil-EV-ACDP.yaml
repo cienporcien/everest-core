@@ -12,7 +12,7 @@ active_modules:
     config_module:
       connector_id: 1
   slac:
-    module: JsSlacSimulator
+    module: Ev15118D8
   ev_manager:
     module: JsEvManager
     config_module:
@@ -31,5 +31,5 @@ active_modules:
           implementation_id: ev
       slac:
         - module_id: slac
-          implementation_id: ev
+          implementation_id: main
 x-module-layout: {}

@@ -1,19 +1,40 @@
-description: Implementation of EV SLAC data link negotiation according to ISO15118-3.
+description: Implementation of EV WLAN data link negotiation according to ISO15118-8. Only the Energy Transfer Types (ETT) allowed in ISO 15118-20 are supported here.
 provides:
   main:
     interface: ev_slac
-    description: SLAC interface implementation.
+    description: Imitate and implement the SLAC interface implementation, even though this is WLAN
     config:
       device:
-        description: Ethernet device used for PLC.
+        description: Ethernet device used for WLAN. Strangely, wpa_cli needs this entire path...
         type: string
-        default: eth1
+        default: /var/run/wpa_supplicant/wlan0
       set_key_timeout_ms:
-        description: Timeout for CM_SET_KEY.REQ. Default works for QCA7000/QCA7005/CG5317.
+        description: Unused in WLAN
         type: integer
         default: 500
+      ETT_AC:
+        description: EV supports AC charging ETT
+        type: boolean
+        default: false
+      ETT_DC:
+        description: EV supports DC charging ETT
+        type: boolean
+        default: true
+      ETT_WPT:
+        description: EV supports WPT charging ETT
+        type: boolean
+        default: false
+      ETT_ACD:
+        description: EV supports ACDP charging ETT (DC only)
+        type: boolean
+        default: true
+      VSE_ADDITIONAL_INFORMATION:
+        description: Additional information from Table 5 in the ISO 15118-8 standard. In the case of ACDP, send the EVID, DC:M=4,S=C (Dedicated DC Coupler, charge only, no BPT) 
+        type: string
+        default: ACD:ID=RB123456|DC:M=4,S=C        
 metadata:
   base_license: https://directory.fsf.org/wiki/License:BSD-3-Clause-Clear
   license: https://opensource.org/licenses/Apache-2.0
   authors:
     - aw@pionix.de
+    - Roger Bedell

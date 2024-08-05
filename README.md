@@ -250,7 +250,7 @@ http://localhost:1880/ui/
 # Start up a new terminal. Run the charger and the ev together.
 # It will run automatically, you don't have to click on anything in the browser.
 cd ~/checkout/everest_exi/everest-core/build/dist
-./bin/manager --config config-dash-20-sil-EV20
+./bin/manager --config config-dash-20-sil-EV20 --
 
 For debugging js, use the following
 
