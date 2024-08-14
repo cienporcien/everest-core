@@ -2,14 +2,26 @@
 // Copyright Pionix GmbH and Contributors to EVerest
 
 #include "ev_slacImpl.hpp"
-#include "wpa_ctrl.h" //lives in /usr/include after installing libwpa-client-dev (sudo apt install libwpa-client-dev)
-// #include "tins/tins.h" //libtins for packet sniffing to get the VSEs from the APs
+#include <filesystem>
 
 //Nice way to know when to start running.
 static std::promise<void> module_ready;
 
 namespace module {
 namespace main {
+
+static std::filesystem::path get_cert_path(const std::filesystem::path& initial_path, const std::string& config_path) {
+    if (config_path.empty()) {
+        return initial_path;
+    }
+
+    if (*config_path.begin() == '/') {
+        return config_path;
+    } else {
+        return initial_path / config_path;
+    }
+}
+
 
 void ev_slacImpl::init() {
     // setup ev run thread
@@ -29,17 +41,17 @@ void ev_slacImpl::run() {
     //Most things are taken from there.
 
     //Initialize the WLAN interface using the libwpa_client.a library
-    struct wpa_ctrl *ctrl_conn = wpa_ctrl_open(config.device.c_str());
-	if (ctrl_conn == NULL){
+    ctrl_conn = wpa_ctrl_open(config.device.c_str());
+	if (!ctrl_conn){
         //error
         return;
     }
 
     //Make sure the wpa_ctrl is working using PING
     const char* thecmd  = "PING";
-    char reply[4000];
-    size_t reply_len = 3999;
-    int rc = wpa_ctrl_request(ctrl_conn, thecmd, sizeof(thecmd), reply, &reply_len, NULL );
+    char reply[4096];
+    size_t reply_len = sizeof(reply);
+    int rc = wpa_ctrl_request(ctrl_conn, thecmd, strlen(thecmd), reply, &reply_len, NULL );
 	std::string reply_str = reply;
     if(reply_str.substr(0, 4) != "PONG"){
         //error, close and leave
@@ -47,8 +59,6 @@ void ev_slacImpl::run() {
         return;
     }
 
-    //Form the EV side VSE
-    std::string EvVSE;
     //Element ID
     EvVSE.append(1, 0xDD);
     //Payload Length (0x7 to 0xFF) - change later once we know the length
@@ -59,7 +69,6 @@ void ev_slacImpl::run() {
     //Element ID (EV VSE)
     EvVSE.append(1, 0x02);
     //Form a byte for the Energy Transfer Type (ETT)
-    unsigned char ETT = 0;
     if(config.ETT_AC){
         ETT = ETT | 0x01;
     }
@@ -80,11 +89,21 @@ void ev_slacImpl::run() {
     //Write the length into the second character
     EvVSE[1] = EvVSE.length();
 
-    //Read the beacon frames from all available networks, look for ISO 15118-8 VSEs with OID 0x70B3D53190
+
+}
+
+void ev_slacImpl::handle_reset() {
+    // your code for cmd reset goes here
+}
+
+//When the command trigger matching is received, go out and try to match with a WLAN AP
+//Read the beacon frames from all available networks, look for ISO 15118-8 VSEs with OID 0x70B3D53190
+//Connect with the network having matching VSE and the highest signal strength.
+bool ev_slacImpl::handle_trigger_matching() {
     //While it is possible to use a shell command, iw dev wlan0 scan dump -u, it might be nicer to use the tins library libtins
     //sudo apt install libtins-dev
     //Unfortunately, tins needs monitor mode which is not allowed in the Raspberry Pi OS, but can be added with nexmon. Seems like a PITA, so
-    //let's try to use iw dev instead. Another issue is that iw scan requires superuser mode. But so does tins.
+    //let's try to use iw dev scan instead. Another issue is that iw scan requires superuser mode. But so does tins.
     FILE *fp;
     int status;
     char nextline[1024];
@@ -93,85 +112,189 @@ void ev_slacImpl::run() {
 	std::string maxbssid = "NOTFOUND";
 	std::string maxssid = "NOTFOUND";
 
-    fp = popen("sudo iw dev wlan0 scan -u", "r");
-    if (fp == NULL){
-        //error
-    }
+    //If the config has an ssid override, don't bother searching for the best ssid using VSE and signal strength.
+    if(config.wpa_ssid_override.empty()){
 
-    std::string tssid;
-    float tsignal;
-    while(fgets(nextline, 1024, fp)){
-        nl = nextline;
-        std::size_t loc = nl.find("signal");
-        //Look for the signal strength, SSID, and Vendor specific
-        if(nl.find("signal") == nl.npos){
-        }
-        else{
-            std::string ts = nl.substr(nl.find_first_of("-"),5);
-            tsignal = std::stof(ts);
-        }
-        
-        if(nl.find("SSID:") == nl.npos){
-        }
-        else{
-            tssid = nl.substr(7, nl.npos);
+        fp = popen("sudo iw dev wlan0 scan -u", "r");
+        if (fp == NULL){
+            //error
+            return false;
         }
 
-        if(nl.find("Vendor specific: OUI 70:b3:d5") == nl.npos){
-        }
-        else{
-            std::string VSEData = nl.substr(37, nl.npos);
-            //Save this SSID if the signal strength is higher than the previously seen highest.
-            //This seems not such a wonderful idea, it might be better to report all the ISO 15118-8 ssids along with BSSID and signal strength
-            //that match our ETT back to the driver (human or not), who can then select the preferred charger AP
-
-            //Get the ETT from the VSE and see if there is at least a match at the Energy Transfer Type
-            std::string tetts = VSEData.substr(10,2);
-            unsigned char tett = std::stoi(tetts, 0, 16);
-            unsigned char tres = tett & ETT;
-            if(0 != tres){
-                maxssid = tssid;                
+        std::string tssid;
+        float tsignal;
+        while(fgets(nextline, 1024, fp)){
+            nl = nextline;
+            std::size_t loc = nl.find("signal");
+            //Look for the signal strength, SSID, and Vendor specific
+            if(nl.find("signal") == nl.npos){
+            }
+            else{
+                std::string ts = nl.substr(nl.find_first_of("-"),5);
+                tsignal = std::stof(ts);
+            }
+            
+            if(nl.find("SSID:") == nl.npos){
+            }
+            else{
+                tssid = nl.substr(7, nl.npos);
+                //remove the /n
+                tssid = tssid.substr(0, tssid.length() - 1);
             }
 
-            //Now look for other interesting information that might help select an AP:
-            //Country code. 
-            std::string EVSECountryCode = UTF8ToString(VSEData.substr(12, 6));
-            //Operator ID
-            std::string EVSEOperatorID = UTF8ToString(VSEData.substr(18, 9));
-            //Charging Site ID
-            std::string EVSESiteID = UTF8ToString(VSEData.substr(27, 15));
-
-            //Then, optional information such as connectors, WPT information. Nothing useful for ACDs unfortunately. However, 
-            //it can be assumed if a WLAN ACD is advertised by a site in the ETT, then it must be the ACDP type (inverted pantograph)
-            // ACDP is only DC, and only unidirectional (not bidirectional).
-            // There is a lot of info concerning WPT etc. The rest of the VSE will be put into a string
-            std::string EVSEAdditionalInformation = UTF8ToString(VSEData.substr(42, VSEData.npos));
-
-            if (tsignal > maxsignal){
-                maxssid = tssid;
+            if(nl.find("Vendor specific: OUI 70:b3:d5") == nl.npos){
             }
+            else{
+                std::string VSEData = nl.substr(37, nl.npos);
+                //Save this SSID if the signal strength is higher than the previously seen highest.
+                //This seems not such a wonderful idea, it might be better to report all the ISO 15118-8 ssids along with BSSID and signal strength
+                //that match our ETT back to the driver (human or not), who can then select the preferred charger AP
+
+                //Get the ETT from the VSE and see if there is at least a match at the Energy Transfer Type
+                std::string tetts = VSEData.substr(10,2);
+                unsigned char tett = std::stoi(tetts, 0, 16);
+                unsigned char tres = tett & ETT;
+                if(0 != tres){
+                    maxssid = tssid;                
+                }
+
+                //Now look for other interesting information that might help select an AP:
+                //Country code. 
+                std::string EVSECountryCode = UTF8ToString(VSEData.substr(12, 6));
+                //Operator ID
+                std::string EVSEOperatorID = UTF8ToString(VSEData.substr(18, 9));
+                //Charging Site ID
+                std::string EVSESiteID = UTF8ToString(VSEData.substr(27, 15));
+
+                //Then, optional information such as connectors, WPT information. Nothing useful for ACDs unfortunately. However, 
+                //it can be assumed if a WLAN ACD is advertised by a site in the ETT, then it must be the ACDP type (inverted pantograph)
+                // ACDP is only DC, and only unidirectional (not bidirectional).
+                // There is a lot of info concerning WPT etc. The rest of the VSE will be put into a string
+                std::string EVSEAdditionalInformation = UTF8ToString(VSEData.substr(42, VSEData.npos));
+
+                if (tsignal > maxsignal){
+                    maxssid = tssid;
+                }
+            }
+
+
         }
-
-
+        status = pclose(fp);
+        if (status == -1){
+            //error
+            return false;
+        }
     }
-    status = pclose(fp);
-    if (status == -1){
-        //error
+    //Now, if we have found an AP with matching VSE, we need to connect to it.
+    //It would be nice to at least have a password to use to connect, or it is possible to use an open WLAN, though not recommended.
+    //First disconnect if we are connected. Remove all the WLAN networks (note this is ephemeral, it doesn't remove them from the wpa_supplicant.conf)
+    //Make sure the wpa_ctrl is working using PING
+    const char* thecmd  = "LIST_NETWORKS";
+    std::stringstream ss(wpa_ctrl_request2(ctrl_conn, thecmd));
+    std::string networkid;
+    std::string networkssid;
+    std::string networkbssid;
+    std::string networkstatus;
+    std::string fullcmd;
+    std::string reply;
+
+    //Read the first line and throw it away
+    char firstline[1024];
+    ss.getline(firstline, sizeof(firstline));
+
+    while(ss.eof() == false){
+        //Network ID
+        ss >> networkid;
+        if(networkid.length() == 0) break;
+        ss >> networkssid;
+        ss >> networkbssid;
+        ss >> networkstatus;
+
+        //remove the network
+        fullcmd = "REMOVE_NETWORK " + networkid;
+        reply = wpa_ctrl_request2(ctrl_conn, fullcmd);
+    }
+  
+
+    //Add the VSE, even though we are not connected, they should be sent when the interface connects with the AP
+    //First remove the element so it doesn't get duplicated. I'm not sure why to use 13 and 14...
+    fullcmd = "VENDOR_ELEM_REMOVE 13 " + EvVSE;
+    reply = wpa_ctrl_request2(ctrl_conn, fullcmd);
+    fullcmd = "VENDOR_ELEM_REMOVE 14 " + EvVSE;
+    reply = wpa_ctrl_request2(ctrl_conn, fullcmd);
+    //Do a scan (not sure why)
+    fullcmd = "SCAN";
+    reply = wpa_ctrl_request2(ctrl_conn, fullcmd);
+    //Add the VSE
+    fullcmd = "VENDOR_ELEM_ADD 13 \"" + EvVSE + "\"";
+    reply = wpa_ctrl_request2(ctrl_conn, fullcmd);
+    fullcmd = "VENDOR_ELEM_ADD 14 " + EvVSE;
+    reply = wpa_ctrl_request2(ctrl_conn, fullcmd);
+
+    //Now, add the network we found above, and enable it.
+    fullcmd = "ADD_NETWORK";
+    reply = wpa_ctrl_request2(ctrl_conn, fullcmd);
+    //NetworkID should be 0, but let's get it from the reply
+    networkid = reply.substr(0,1);
+    //Set up the network
+    if(config.wpa_ssid_override.empty()){
+        fullcmd = "SET_NETWORK " + networkid + " ssid \"" + maxssid + "\"";
+        reply = wpa_ctrl_request2(ctrl_conn, fullcmd);
+    }
+    else{ //use the override ssid
+        fullcmd = "SET_NETWORK " + networkid + " ssid \"" + config.wpa_ssid_override + "\"";
+        reply = wpa_ctrl_request2(ctrl_conn, fullcmd);
     }
 
+    //At this point, we need to setup the credentials that will be used for WPA2-Personal or WPA2-Enterprise
+    if(config.WPA_TYPE == "WPA-Enterprise-EAP-TLS"){
+        const auto default_cert_path = mod->info.paths.etc / "certs";
+        const auto cert_path = get_cert_path(default_cert_path, config.certificate_path);
+        //Set up the EAP-TLS wpa options
+        fullcmd = "SET_NETWORK "  + networkid + " key_mgmt \"" + "WPA-EAP\"";
+        reply = wpa_ctrl_request2(ctrl_conn, fullcmd);
 
-    //Close the WLAN interface
-    wpa_ctrl_close(ctrl_conn);
+        fullcmd = "SET_NETWORK "  + networkid + " pairwise \"" + "CCMP TKIP\"";
+        reply = wpa_ctrl_request2(ctrl_conn, fullcmd);
 
+        fullcmd = "SET_NETWORK "  + networkid + " group \"" + "CCMP TKIP\"";
+        reply = wpa_ctrl_request2(ctrl_conn, fullcmd);
 
-}
+        fullcmd = "SET_NETWORK "  + networkid + " eap \"" + "TLS\"";
+        reply = wpa_ctrl_request2(ctrl_conn, fullcmd);
 
-void ev_slacImpl::handle_reset() {
-    // your code for cmd reset goes here
-}
+        fullcmd = "SET_NETWORK "  + networkid + " identity \"" + config.eap_tls_identity + "\"";
+        reply = wpa_ctrl_request2(ctrl_conn, fullcmd);
 
-bool ev_slacImpl::handle_trigger_matching() {
-    // your code for cmd trigger_matching goes here
+        fullcmd = "SET_NETWORK "  + networkid + " ca_cert \"" + cert_path.string() + "/ca.pem\"";
+        reply = wpa_ctrl_request2(ctrl_conn, fullcmd);
+
+        fullcmd = "SET_NETWORK "  + networkid + " client_cert \"" + cert_path.string() + "/user.pem\"";
+        reply = wpa_ctrl_request2(ctrl_conn, fullcmd);
+
+        fullcmd = "SET_NETWORK "  + networkid + " private_key \"" + cert_path.string() + "/user.prv\"";
+        reply = wpa_ctrl_request2(ctrl_conn, fullcmd);
+
+        fullcmd = "SET_NETWORK "  + networkid + " private_key_password \"" + config.private_key_password + "\"";
+        reply = wpa_ctrl_request2(ctrl_conn, fullcmd);
+    }
+    else if(config.WPA_TYPE == "WPA-Personal"){
+        fullcmd = "SET_NETWORK "  + networkid + " key_mgmt \"" + "WPA-PSK\"";
+        reply = wpa_ctrl_request2(ctrl_conn, fullcmd);
+
+        //psk 
+        fullcmd = "SET_NETWORK "  + networkid + " psk \"" + config.wpa_psk_passphrase + "\"";
+        reply = wpa_ctrl_request2(ctrl_conn, fullcmd);
+    }
+    
+    //Start up the network by selecting it.
+    fullcmd = "SELECT_NETWORK "  + networkid;
+    reply = wpa_ctrl_request2(ctrl_conn, fullcmd);
+
+    fullcmd = "LIST_NETWORKS";
+    reply = wpa_ctrl_request2(ctrl_conn, fullcmd);
+
+    //We need to verify that the connection is made, probably by waiting for it to connect with a callback from libwpa_client.
     return true;
 }
 
@@ -187,6 +310,19 @@ std::string ev_slacImpl::UTF8ToString(std::string CodedString){
     }
     return retstr;
 }
+//Helper function for wpa_ctrl_request
+std::string ev_slacImpl::wpa_ctrl_request2(struct wpa_ctrl *ctrl, std::string cmd){
+    char reply[4096];
+    memset(reply,0,4096);
+    size_t reply_len = sizeof(reply);
+
+    int rc = wpa_ctrl_request(ctrl, cmd.c_str(), cmd.length(), reply, &reply_len, NULL );
+
+    //get the reply and return it.
+    return reply;
+}
+		     
+		     
 
 
 } // namespace main

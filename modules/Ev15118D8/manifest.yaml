@@ -19,19 +19,54 @@ provides:
       ETT_DC:
         description: EV supports DC charging ETT
         type: boolean
-        default: true
+        default: false
       ETT_WPT:
         description: EV supports WPT charging ETT
         type: boolean
         default: false
       ETT_ACD:
-        description: EV supports ACDP charging ETT (DC only)
+        description: EV supports ACDP charging ETT (DC charging only)
         type: boolean
         default: true
       VSE_ADDITIONAL_INFORMATION:
-        description: Additional information from Table 5 in the ISO 15118-8 standard. In the case of ACDP, send the EVID, DC:M=4,S=C (Dedicated DC Coupler, charge only, no BPT) 
+        description: Additional information from Table 5 in the ISO 15118-8 standard. In the case of ACDP, send the EVID. Not sure what this is for, maybe the AP can reject EVIDs it doesn't like?
         type: string
-        default: ACD:ID=RB123456|DC:M=4,S=C        
+        default: ACD:ID=RB123456
+      WPA_TYPE:
+        description: Either "WPA-Personal" (psk) or "WPA-Enterprise-EAP-TLS" (certificate).
+        type: string
+        enum:
+          - WPA-Personal
+          - WPA-Enterprise-EAP-TLS
+        default: WPA-Enterprise-EAP-TLS    
+      certificate_path:
+        description: Path to certificate directories for EAP-TLS WPA if WPA_TYPE is WPA-Enterprise-EAP-TLS
+        type: string
+        default: ""
+      logging_path:
+        description: Path to logging directory (will be created if non existent)
+        type: string
+        default: "."
+      private_key_password:
+        description: Password for private key files (USE ONLY FOR TESTING)
+        type: string
+        default: "123456"
+      enable_wpa_logging:
+        description: Verbosely log the WPA Connection
+        type: boolean
+        default: false              
+      wpa_psk_passphrase:
+        description: Passphrase if WPA_TYPE is WPA-Personal
+        type: string
+        default: ""
+      wpa_ssid_override:        
+        description: WPA SSID that will always be used instead of searching for the best SSID using VSE. If not available, no connection. Leave blank to search for the best WiFi network.
+        type: string
+        default: ""
+      eap_tls_identity:
+        description: WPA EAP-TLS identity (i.e. email address etc.)
+        type: string
+        default: ""
 metadata:
   base_license: https://directory.fsf.org/wiki/License:BSD-3-Clause-Clear
   license: https://opensource.org/licenses/Apache-2.0

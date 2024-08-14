@@ -20,11 +20,6 @@
 namespace module {
 
 struct Conf {
-    bool ETT_AC;
-    bool ETT_DC;
-    bool ETT_WPT;
-    bool ETT_ACD;
-    std::string VSE_ADDITIONAL_INFORMATION;
 };
 
 class Ev15118D8 : public Everest::ModuleBase {
