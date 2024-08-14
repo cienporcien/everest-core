@@ -14,6 +14,7 @@
 
 // ev@75ac1216-19eb-4182-a85c-820f1fc2c091:v1
 // insert your custom include headers here
+#include "wpa_ctrl.h" //lives in /usr/include after installing libwpa-client-dev (sudo apt install libwpa-client-dev)
 // ev@75ac1216-19eb-4182-a85c-820f1fc2c091:v1
 
 namespace module {
@@ -27,6 +28,14 @@ struct Conf {
     bool ETT_WPT;
     bool ETT_ACD;
     std::string VSE_ADDITIONAL_INFORMATION;
+    std::string WPA_TYPE;
+    std::string certificate_path;
+    std::string logging_path;
+    std::string private_key_password;
+    bool enable_wpa_logging;
+    std::string wpa_psk_passphrase;
+    std::string wpa_ssid_override;
+    std::string eap_tls_identity;
 };
 
 class ev_slacImpl : public ev_slacImplBase {
@@ -56,7 +65,13 @@ private:
     virtual void ready() override;
 
     // ev@3370e4dd-95f4-47a9-aaec-ea76f34a66c9:v1
+    //helper functions
      std::string UTF8ToString(std::string CodedString);
+     std::string wpa_ctrl_request2(struct wpa_ctrl *ctrl, std::string cmd);
+    //The complete EV side VSE in bytes
+    std::string EvVSE;
+    struct wpa_ctrl *ctrl_conn;
+    unsigned char ETT = 0;
     // ev@3370e4dd-95f4-47a9-aaec-ea76f34a66c9:v1
 };
 
