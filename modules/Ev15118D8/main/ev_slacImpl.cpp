@@ -58,16 +58,12 @@ void ev_slacImpl::run() {
         wpa_ctrl_close(ctrl_conn);
         return;
     }
+    std::ostringstream oss;
 
-    //Element ID
-    EvVSE.append(1, 0xDD);
-    //Payload Length (0x7 to 0xFF) - change later once we know the length
-    EvVSE.append(1, 0x07);
     //Unique ISO Organization ID
-    unsigned char cp[5] = {0x70, 0xB3, 0xD5, 0x31, 0x90};
-    EvVSE.append(reinterpret_cast<char *>(cp), 5);
+    oss << "70b3d53190";
     //Element ID (EV VSE)
-    EvVSE.append(1, 0x02);
+    oss << "02";
     //Form a byte for the Energy Transfer Type (ETT)
     if(config.ETT_AC){
         ETT = ETT | 0x01;
@@ -81,14 +77,26 @@ void ev_slacImpl::run() {
     if(config.ETT_ACD){
         ETT = ETT | 0x08;
     }
-    EvVSE.append(1, ETT);
+    int ti = ETT;
+    //Convert to hex
+    oss << std::hex << std::setfill('0') << std::setw(2) << ti;
 
-    //The additional information
-    EvVSE.append(config.VSE_ADDITIONAL_INFORMATION);
+    //The additional information, need to convert each char to hex
+    //oss << std::hex << std::uppercase << std::setfill('0') << std::setw(2);
+    std::for_each(config.VSE_ADDITIONAL_INFORMATION.begin(), config.VSE_ADDITIONAL_INFORMATION.end(), [&oss](char c){
+        oss << (int)c;
+    });
+    
+    //calculate the payload length
+    std::string payload = oss.str();
+    int pl = (payload.length() / 2);
 
-    //Write the length into the second character
-    EvVSE[1] = EvVSE.length();
+    std::stringstream fss;
+    //Put it all together
+    fss << "dd" << std::hex << std::setfill('0') << std::setw(2) << pl << payload;
 
+    //Get the VSE string
+    EvVSE = fss.str();
 
 }
 
@@ -143,6 +151,7 @@ bool ev_slacImpl::handle_trigger_matching() {
             }
 
             if(nl.find("Vendor specific: OUI 70:b3:d5") == nl.npos){
+                //Means that the ap doesn't have a 15118-8 VSE
             }
             else{
                 std::string VSEData = nl.substr(37, nl.npos);
@@ -185,6 +194,14 @@ bool ev_slacImpl::handle_trigger_matching() {
             return false;
         }
     }
+
+    //No valid WiFi network found, and no override.
+    if(config.wpa_ssid_override.empty() && maxssid == "NOTFOUND")
+    {
+        //No network to try to connect to.
+        return false;
+    }
+    
     //Now, if we have found an AP with matching VSE, we need to connect to it.
     //It would be nice to at least have a password to use to connect, or it is possible to use an open WLAN, though not recommended.
     //First disconnect if we are connected. Remove all the WLAN networks (note this is ephemeral, it doesn't remove them from the wpa_supplicant.conf)
@@ -226,7 +243,7 @@ bool ev_slacImpl::handle_trigger_matching() {
     fullcmd = "SCAN";
     reply = wpa_ctrl_request2(ctrl_conn, fullcmd);
     //Add the VSE
-    fullcmd = "VENDOR_ELEM_ADD 13 \"" + EvVSE + "\"";
+    fullcmd = "VENDOR_ELEM_ADD 13 " + EvVSE;
     reply = wpa_ctrl_request2(ctrl_conn, fullcmd);
     fullcmd = "VENDOR_ELEM_ADD 14 " + EvVSE;
     reply = wpa_ctrl_request2(ctrl_conn, fullcmd);
@@ -251,16 +268,16 @@ bool ev_slacImpl::handle_trigger_matching() {
         const auto default_cert_path = mod->info.paths.etc / "certs";
         const auto cert_path = get_cert_path(default_cert_path, config.certificate_path);
         //Set up the EAP-TLS wpa options
-        fullcmd = "SET_NETWORK "  + networkid + " key_mgmt \"" + "WPA-EAP\"";
+        fullcmd = "SET_NETWORK "  + networkid + " key_mgmt " + "WPA-EAP";
         reply = wpa_ctrl_request2(ctrl_conn, fullcmd);
 
-        fullcmd = "SET_NETWORK "  + networkid + " pairwise \"" + "CCMP TKIP\"";
+        fullcmd = "SET_NETWORK "  + networkid + " pairwise " + "CCMP TKIP";
         reply = wpa_ctrl_request2(ctrl_conn, fullcmd);
 
-        fullcmd = "SET_NETWORK "  + networkid + " group \"" + "CCMP TKIP\"";
+        fullcmd = "SET_NETWORK "  + networkid + " group " + "CCMP TKIP";
         reply = wpa_ctrl_request2(ctrl_conn, fullcmd);
 
-        fullcmd = "SET_NETWORK "  + networkid + " eap \"" + "TLS\"";
+        fullcmd = "SET_NETWORK "  + networkid + " eap " + "TLS";
         reply = wpa_ctrl_request2(ctrl_conn, fullcmd);
 
         fullcmd = "SET_NETWORK "  + networkid + " identity \"" + config.eap_tls_identity + "\"";
@@ -275,11 +292,11 @@ bool ev_slacImpl::handle_trigger_matching() {
         fullcmd = "SET_NETWORK "  + networkid + " private_key \"" + cert_path.string() + "/user.prv\"";
         reply = wpa_ctrl_request2(ctrl_conn, fullcmd);
 
-        fullcmd = "SET_NETWORK "  + networkid + " private_key_password \"" + config.private_key_password + "\"";
+        fullcmd = "SET_NETWORK "  + networkid + " private_key_passwd \"" + config.private_key_password + "\"";
         reply = wpa_ctrl_request2(ctrl_conn, fullcmd);
     }
     else if(config.WPA_TYPE == "WPA-Personal"){
-        fullcmd = "SET_NETWORK "  + networkid + " key_mgmt \"" + "WPA-PSK\"";
+        fullcmd = "SET_NETWORK "  + networkid + " key_mgmt " + "WPA-PSK";
         reply = wpa_ctrl_request2(ctrl_conn, fullcmd);
 
         //psk 
@@ -291,10 +308,32 @@ bool ev_slacImpl::handle_trigger_matching() {
     fullcmd = "SELECT_NETWORK "  + networkid;
     reply = wpa_ctrl_request2(ctrl_conn, fullcmd);
 
+    fullcmd = "SCAN";
+    reply = wpa_ctrl_request2(ctrl_conn, fullcmd);
+
     fullcmd = "LIST_NETWORKS";
     reply = wpa_ctrl_request2(ctrl_conn, fullcmd);
 
-    //We need to verify that the connection is made, probably by waiting for it to connect with a callback from libwpa_client.
+    //We probably need to verify that the connection is actually made, by waiting for it to connect with a callback from libwpa_client.
+    //Wait for status wpa_state=COMPLETED, time out after 5 tries (seconds)
+    std::size_t found;
+    int i;
+    for(i = 0; i < 5; i++){
+        sleep(1);
+        fullcmd = "STATUS";
+        reply = wpa_ctrl_request2(ctrl_conn, fullcmd);
+        found = reply.find("wpa_state=COMPLETED");
+        if (found != reply.npos) break;
+    }
+    if(i == 5){
+        //Connect failed.
+        publish_dlink_ready(false);
+        return false;
+    }
+
+    //Tell Everest that the connection is made and charging can start.
+    publish_dlink_ready(true);
+    publish_state("MATCHED");
     return true;
 }
 

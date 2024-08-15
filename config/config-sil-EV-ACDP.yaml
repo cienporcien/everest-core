@@ -16,7 +16,8 @@ active_modules:
     config_implementation:
       main:
         WPA_TYPE: WPA-Personal
-        wpa_psk_passphrase: riogenil   
+        wpa_psk_passphrase: riogenil
+        VSE_ADDITIONAL_INFORMATION: ACD:ID=RB123456   
   ev_manager:
     module: JsEvManager
     config_module:
