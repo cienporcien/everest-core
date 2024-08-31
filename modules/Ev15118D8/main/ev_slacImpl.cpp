@@ -114,6 +114,7 @@ void ev_slacImpl::handle_reset() {
 //When the command trigger matching is received, go out and try to match with a WLAN AP
 //Read the beacon frames from all available networks, look for ISO 15118-8 VSEs with OID 0x70B3D53190
 //Connect with the network having matching VSE and the highest signal strength.
+//If an SSID override is found, then this SSID is simply connected to.
 bool ev_slacImpl::handle_trigger_matching() {
     //While it is possible to use a shell command, iw dev wlan0 scan dump -u, it might be nicer to use the tins library libtins
     //sudo apt install libtins-dev
@@ -191,6 +192,19 @@ bool ev_slacImpl::handle_trigger_matching() {
                 // ACDP is only DC, and only unidirectional (not bidirectional).
                 // There is a lot of info concerning WPT etc. The rest of the VSE will be put into a string
                 std::string EVSEAdditionalInformation = UTF8ToString(VSEData.substr(42, VSEData.npos));
+
+                //Though, unfortunately, there is no place to put this data in the slac interface as a var
+                //Another way to approach it would be to let the user specify to use a particular countrycode, operatorid, siteid and additional information
+                //in config variables instead, and use that information here to decide on a particular AP.
+                //Add CountryCode, EVSEOperatorID, EVSESiteID, EVSEAdditionalInformation and allow for a prefix of either "Required:" or "Preferred:". If neither
+                //prefix is attached, it is assumed to be Preferred. In the AdditionalInformation, part can be preferred, and everything after "Required" is considered
+                //Required.
+                //The logic is:
+                //If two or more APs are available that match the ETT, then the other info is checked to decide between them, and the best match wins. If the same,
+                //Then the one with the higher Signal strength wins.
+                //If Required: is prefixed, then any AP that doesn't have an exact match with the required info is completely rejected.
+
+                
 
                 if (tsignal > maxsignal){
                     maxssid = tssid;
