@@ -15,9 +15,15 @@ active_modules:
     module: Ev15118D8
     config_implementation:
       main:
+        device: wlan0
         WPA_TYPE: WPA-Personal
         wpa_psk_passphrase: riogenil
-        VSE_ADDITIONAL_INFORMATION: ACD:ID=RB123456   
+        VSE_ADDITIONAL_INFORMATION: ACD:ID=RB123456
+        VSECountryCodeMatch: ES  
+        enable_wpa_logging: true
+        VSEAdditionalInformationMatch: WPT:Z=2
+        VSEOperatorIDMatch: KEP
+        VSEChargingSiteIDMatch: 12345 
   ev_manager:
     module: JsEvManager
     config_module:

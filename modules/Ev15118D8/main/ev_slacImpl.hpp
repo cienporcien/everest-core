@@ -36,6 +36,11 @@ struct Conf {
     std::string wpa_psk_passphrase;
     std::string wpa_ssid_override;
     std::string eap_tls_identity;
+    std::string VSECountryCodeMatch;
+    std::string VSEOperatorIDMatch;
+    int VSEChargingSiteIDMatch;
+    std::string VSEAdditionalInformationMatch;
+
 };
 
 class ev_slacImpl : public ev_slacImplBase {

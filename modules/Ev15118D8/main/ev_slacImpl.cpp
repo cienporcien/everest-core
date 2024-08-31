@@ -42,7 +42,8 @@ void ev_slacImpl::run() {
     //Most things are taken from there.
 
     //Initialize the WLAN interface using the libwpa_client.a library
-    ctrl_conn = wpa_ctrl_open(config.device.c_str());
+    std::string fullcs = "/var/run/wpa_supplicant/" + config.device;
+    ctrl_conn = wpa_ctrl_open(fullcs.c_str());
 	if (!ctrl_conn){
         //error
             std::string errstr = fmt::format("WPA_client couldn't open device {} for WiFi communication. Error: {}", config.device, strerror(errno));
@@ -175,8 +176,8 @@ bool ev_slacImpl::handle_trigger_matching() {
                 std::string tetts = VSEData.substr(10,2);
                 unsigned char tett = std::stoi(tetts, 0, 16);
                 unsigned char tres = tett & ETT;
-                if(0 != tres){
-                    maxssid = tssid;                
+                if(0 == tres){
+                    continue;                
                 }
 
                 //Now look for other interesting information that might help select an AP:
@@ -184,8 +185,8 @@ bool ev_slacImpl::handle_trigger_matching() {
                 std::string EVSECountryCode = UTF8ToString(VSEData.substr(12, 6));
                 //Operator ID
                 std::string EVSEOperatorID = UTF8ToString(VSEData.substr(18, 9));
-                //Charging Site ID
-                std::string EVSESiteID = UTF8ToString(VSEData.substr(27, 15));
+                //Charging Site ID   -1 means not used, and is not utf8
+                int EVSESiteID = std::stoi(UTF8ToString(VSEData.substr(27, 15)));
 
                 //Then, optional information such as connectors, WPT information. Nothing useful for ACDs unfortunately. However, 
                 //it can be assumed if a WLAN ACD is advertised by a site in the ETT, then it must be the ACDP type (inverted pantograph)
@@ -196,19 +197,54 @@ bool ev_slacImpl::handle_trigger_matching() {
                 //Though, unfortunately, there is no place to put this data in the slac interface as a var
                 //Another way to approach it would be to let the user specify to use a particular countrycode, operatorid, siteid and additional information
                 //in config variables instead, and use that information here to decide on a particular AP.
-                //Add CountryCode, EVSEOperatorID, EVSESiteID, EVSEAdditionalInformation and allow for a prefix of either "Required:" or "Preferred:". If neither
-                //prefix is attached, it is assumed to be Preferred. In the AdditionalInformation, part can be preferred, and everything after "Required" is considered
-                //Required.
-                //The logic is:
-                //If two or more APs are available that match the ETT, then the other info is checked to decide between them, and the best match wins. If the same,
-                //Then the one with the higher Signal strength wins.
-                //If Required: is prefixed, then any AP that doesn't have an exact match with the required info is completely rejected.
+                //Add CountryCode, EVSEOperatorID, EVSESiteID, EVSEAdditionalInformation and allow the user to specify a match for each.
+                //If any AP that doesn't have an exact match with the required info is completely rejected. Note that the additional information
+                //is a string, so it can be a substring match.
 
-                
+                if(config.enable_wpa_logging){
+                    //Log the VSE information
+                    std::string logstr = fmt::format("Found VSE on SSID: {}, CountryCode: {}, OperatorID: {}, SiteID: {}, AdditionalInformation: {}", tssid, EVSECountryCode, EVSEOperatorID, EVSESiteID, EVSEAdditionalInformation);
+                    EVLOG_info << logstr;
+                }
+
+                //Check if the AP matches the required information in config. If not, continue to the next AP.
+                if(config.VSECountryCodeMatch != ""){
+                    if(config.VSECountryCodeMatch != EVSECountryCode){
+                        std::string logstr = fmt::format("VSE CountryCode mismatch on SSID: {}, config.VSECountryCodeMatch: {}, VSECountryCode: {}", tssid, config.VSECountryCodeMatch, EVSECountryCode);
+                        EVLOG_info << logstr;
+                        continue;
+                    }
+                }
+
+                if(config.VSEOperatorIDMatch != ""){
+                    if(config.VSEOperatorIDMatch != EVSEOperatorID){
+                        std::string logstr = fmt::format("VSE OperatorID mismatch on SSID: {}, config.VSEOperatorIDMatch: {}, VSEOperatorID: {}", tssid, config.VSEOperatorIDMatch, EVSEOperatorID);
+                        EVLOG_info << logstr;
+                        continue;
+                    }
+                }
+
+                if(config.VSEChargingSiteIDMatch != -1){
+                    if(config.VSEChargingSiteIDMatch != EVSESiteID){
+                        std::string logstr = fmt::format("VSE ChargingSiteID mismatch on SSID: {}, config.VSEChargingSiteIDMatch: {}, VSEChargingSiteID: {}", tssid, config.VSEChargingSiteIDMatch, EVSESiteID);
+                        EVLOG_info << logstr;
+                        continue;
+                    }
+                }
+
+                if(config.VSEAdditionalInformationMatch != ""){
+                    if(EVSEAdditionalInformation.find(config.VSEAdditionalInformationMatch) == std::string::npos){
+                        std::string logstr = fmt::format("VSE AdditionalInformation mismatch on SSID: {}, config.VSEAdditionalInformationMatch: {}, VSEAdditionalInformation: {}", tssid, config.VSEAdditionalInformationMatch, EVSESiteID);
+                        EVLOG_info << logstr;
+                        continue;
+                    }
+                }   
+
 
                 if (tsignal > maxsignal){
                     maxssid = tssid;
-                }
+                    maxsignal = tsignal;
+                }   
             }
 
 
@@ -227,6 +263,8 @@ bool ev_slacImpl::handle_trigger_matching() {
     if(config.wpa_ssid_override.empty() && maxssid == "NOTFOUND")
     {
         //No network to try to connect to. Not really an error, but a warning that we couldn't find a network to connect to.
+        std::string errstr = fmt::format("Couldn't find suitable network for WiFi communication.");   
+        EVLOG_error << errstr;
         publish_dlink_ready(false);
         publish_state("UNMATCHED");
         return false;
