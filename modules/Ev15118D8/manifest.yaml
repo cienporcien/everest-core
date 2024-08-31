@@ -5,9 +5,9 @@ provides:
     description: Imitate and implement the SLAC interface implementation, even though this is WLAN
     config:
       device:
-        description: Ethernet device used for WLAN. Strangely, wpa_cli needs this entire path...
+        description: Ethernet device used for WLAN.
         type: string
-        default: /var/run/wpa_supplicant/wlan0
+        default: wlan0
       set_key_timeout_ms:
         description: Unused in WLAN
         type: integer
@@ -66,7 +66,24 @@ provides:
       eap_tls_identity:
         description: WPA EAP-TLS identity (i.e. email address etc.)
         type: string
+        default: ""      
+      VSECountryCodeMatch:
+        description: Country code of the operator of the EVSE (ISO 3166-1 alpha-2). If set, must match the VSE Country Code or the EVSE will not connect.
+        type: string
         default: ""
+      VSEOperatorIDMatch:
+        description: Operator ID of the EVSE Operator ID as defined in ISO 15118-2:2014,Annex H. The ID is typically issued by a national authority. If the operator of the CS has no operator ID, the value shall be set to “–––”(0x2D2D2D). If set, must match the VSE Operator ID or the EVSE will not connect.
+        type: string
+        default: ""
+      VSEChargingSiteIDMatch:
+        description: Unique identifier of the CS, to be defined by the operator. The charging site ID is a numerical value and in general not a valid UTF-8 string. If not -1, must match the VSE site ID or the EVSE will not connect.
+        type: integer    
+        default: -1
+      VSEAdditionalInformationMatch:
+        description: Additional information from Table 5 in the ISO 15118-8 standard. If set, the VSE Additional Information must contain this or the EVSE will not connect.
+        type: string
+        default: ""
+
 metadata:
   base_license: https://directory.fsf.org/wiki/License:BSD-3-Clause-Clear
   license: https://opensource.org/licenses/Apache-2.0
