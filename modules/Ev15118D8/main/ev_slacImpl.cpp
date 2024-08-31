@@ -3,6 +3,7 @@
 
 #include "ev_slacImpl.hpp"
 #include <filesystem>
+#include <fmt/core.h>
 
 //Nice way to know when to start running.
 static std::promise<void> module_ready;
@@ -44,6 +45,9 @@ void ev_slacImpl::run() {
     ctrl_conn = wpa_ctrl_open(config.device.c_str());
 	if (!ctrl_conn){
         //error
+            std::string errstr = fmt::format("WPA_client couldn't open device {} for WiFi communication. Error: {}", config.device, strerror(errno));
+            EVLOG_error << errstr;
+            raise_error(error_factory->create_error("generic/CommunicationFault", "", errstr));
         return;
     }
 
@@ -55,6 +59,9 @@ void ev_slacImpl::run() {
 	std::string reply_str = reply;
     if(reply_str.substr(0, 4) != "PONG"){
         //error, close and leave
+        std::string errstr = fmt::format("WPA_client couldn't ping device {} for WiFi communication. Error: {}", config.device, strerror(errno));
+        EVLOG_error << errstr;
+        raise_error(error_factory->create_error("generic/CommunicationFault", "", errstr));
         wpa_ctrl_close(ctrl_conn);
         return;
     }
@@ -123,9 +130,13 @@ bool ev_slacImpl::handle_trigger_matching() {
     //If the config has an ssid override, don't bother searching for the best ssid using VSE and signal strength.
     if(config.wpa_ssid_override.empty()){
 
-        fp = popen("sudo iw dev wlan0 scan -u", "r");
+        std::string iwcmd = "sudo iw dev " + config.device + " scan -u";
+        fp = popen(iwcmd.c_str(), "r");
         if (fp == NULL){
             //error
+            std::string errstr = fmt::format("Couldn't run iw on device {} for WiFi communication. Error: {}", config.device, strerror(errno));
+            EVLOG_error << errstr;
+            raise_error(error_factory->create_error("generic/CommunicationFault", "", errstr));
             return false;
         }
 
@@ -191,6 +202,9 @@ bool ev_slacImpl::handle_trigger_matching() {
         status = pclose(fp);
         if (status == -1){
             //error
+            std::string errstr = fmt::format("Couldn't close iw on device {} for WiFi communication. Error: {}", config.device, strerror(errno));   
+            EVLOG_error << errstr;
+            raise_error(error_factory->create_error("generic/CommunicationFault", "", errstr));
             return false;
         }
     }
@@ -198,7 +212,9 @@ bool ev_slacImpl::handle_trigger_matching() {
     //No valid WiFi network found, and no override.
     if(config.wpa_ssid_override.empty() && maxssid == "NOTFOUND")
     {
-        //No network to try to connect to.
+        //No network to try to connect to. Not really an error, but a warning that we couldn't find a network to connect to.
+        publish_dlink_ready(false);
+        publish_state("UNMATCHED");
         return false;
     }
     
@@ -253,14 +269,17 @@ bool ev_slacImpl::handle_trigger_matching() {
     reply = wpa_ctrl_request2(ctrl_conn, fullcmd);
     //NetworkID should be 0, but let's get it from the reply
     networkid = reply.substr(0,1);
+    std::string cssid = "";
     //Set up the network
     if(config.wpa_ssid_override.empty()){
         fullcmd = "SET_NETWORK " + networkid + " ssid \"" + maxssid + "\"";
         reply = wpa_ctrl_request2(ctrl_conn, fullcmd);
+        cssid = maxssid;
     }
     else{ //use the override ssid
         fullcmd = "SET_NETWORK " + networkid + " ssid \"" + config.wpa_ssid_override + "\"";
         reply = wpa_ctrl_request2(ctrl_conn, fullcmd);
+        cssid = config.wpa_ssid_override;
     }
 
     //At this point, we need to setup the credentials that will be used for WPA2-Personal or WPA2-Enterprise
@@ -328,6 +347,10 @@ bool ev_slacImpl::handle_trigger_matching() {
     if(i == 5){
         //Connect failed.
         publish_dlink_ready(false);
+        publish_state("UNMATCHED");
+            std::string errstr = fmt::format("Couldn't connect to wlan network {}. Error: {}", cssid, strerror(errno));   
+            EVLOG_error << errstr;
+            raise_error(error_factory->create_error("generic/CommunicationFault", "", errstr));        
         return false;
     }
 
