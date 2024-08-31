@@ -8,15 +8,13 @@ and SLAC, this module mimics (and implements) the ev_slac interface similarly to
 
 How it works:
 
-On bootup, the EV WLAN is set up and starts listening for WLAN networks as specified in ISO 15118-8
-    - - In run() in ev_slacImpl.cpp after Init is finished
+On bootup, the EV WLAN is set up.as specified in ISO 15118-8
+    - - The module is initialized and the WLAN is set up
 The vehicle arrives within range of one or more charger WLAN networks that are broadcasting ISO 15118-8 Vender Specific Elements (VSEs)
-    - An event is generated from the WLAN code
-Only the networks with compatible VSEs are recognized as potential WLAN networks to join.
-    - The event handler parses the VSE and adds to a list of potential networks
-The driver is asked to choose which network(s) to join (or this can be predetermined, e.g. bus garage, or if there is only a single compatible network)
-The driver chooses a network (or it is chosen for him or her)
-    - This generates an event that starts the join process - we can use the existing cmd trigger_matching for this
+The driver initiates the WLAN network join process
+    - The driver initiates the WLAN network join process by pressing a button or similar
+The EV WLAN network join process is initiated
+    - we can use the existing cmd trigger_matching for this
 The WLAN network is joined if the VSEs sent from the vehicle are recognized by the charger to be compatible and
 the credentials sent by the vehicle are also accepted.
     - The event handler takes care of joining the network
