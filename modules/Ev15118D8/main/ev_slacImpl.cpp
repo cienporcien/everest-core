@@ -408,7 +408,9 @@ bool ev_slacImpl::handle_trigger_matching() {
 
     //Tell Everest that the connection is made and charging can start.
     publish_dlink_ready(true);
-    publish_state("MATCHED");
+    publish_state("MATCHED");            
+    std::string errstr = fmt::format("Connected to wlan network: {}.", cssid);   
+    EVLOG_info << errstr;
     return true;
 }
 
