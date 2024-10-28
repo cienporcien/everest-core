@@ -14,11 +14,11 @@ The vehicle arrives within range of one or more charger WLAN networks that are b
 The driver initiates the WLAN network join process
     - The driver initiates the WLAN network join process by pressing a button or similar
 The EV WLAN network join process is initiated
-    - we can use the existing cmd trigger_matching for this
+    - we use the existing cmd trigger_matching for this
 The WLAN network is joined if the VSEs sent from the vehicle are recognized by the charger to be compatible and
 the credentials sent by the vehicle are also accepted.
-    - The event handler takes care of joining the network
-    - When the join is successful, mqtt message dlink_ready=true is sent, also state=MATCHED is sent
+    - The trigger_matching event handler takes care of joining the network
+    - When the join is successful, mqtt message dlink_ready=true is sent, also state=MATCHED is sent. if not successful, dlink_ready=false and state=FAILED is sent
 At this point, the EV and EVSE are connected, similarly to when PLC SLAC is completed and PLC communication is connected.
 Once the network is joined, communication proceeds as in the evlibiso15118 module and the ISO 15118-20 wireless SDP process is initiated
 
