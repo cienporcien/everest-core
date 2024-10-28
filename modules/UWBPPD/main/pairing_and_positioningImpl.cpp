@@ -8,6 +8,8 @@
 #include <cstdlib>
 #include <iostream>
 #include <unistd.h>
+#include <fmt/core.h>
+#include <thread>
 
 constexpr const char* const SERIAL_PORT_1 = "/dev/ttyUSB0" ;
 
@@ -25,7 +27,10 @@ void pairing_and_positioningImpl::init() {
     }
     catch (const OpenFailed&)
     {
-        throw std::runtime_error("Module \"UWBPPD\" could not be initialized! The serial port did not open correctly.");
+        
+        std::string errstr = fmt::format("Module \"UWBPPD\" could not be initialized! The serial port: {} did not open correctly. Error: {}", config.serial_port, strerror(errno));
+        EVLOG_error << errstr;
+        //raise_error(error_factory->create_error("generic/CommunicationFault", "", errstr));
     }
 
     // Set the baud rate of the serial port. TODO fix
