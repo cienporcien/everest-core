@@ -36,7 +36,7 @@ ev_add_module(DummyTokenProvider)
 ev_add_module(DummyTokenProviderManual)
 ev_add_module(PhyVersoBSP)
 
-ev_add_module(CbexiEV)
+ev_add_module(EVSideD20)
 ev_add_module(UWBPPD)
 ev_add_module(Ev15118D8)
 ev_add_module(Evse15118D8)

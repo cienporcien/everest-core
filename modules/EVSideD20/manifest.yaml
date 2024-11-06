@@ -1,0 +1,39 @@
+description: >-
+  This module implements an ISO15118-20 ACDP or MCS DC EV using the the C++ library evlibiso15118.
+config:
+  device:
+    description: >-
+      Ethernet device used for HLC. Any local interface that has an ipv6 link-local and a MAC addr will work.
+    type: string
+    default: eth0
+  supported_ISO15118_20_SERVICE:
+    description: Currently the EV supports ISO15118-20 ACDP and MCS.
+    type: string
+    enum:
+      - ACDP
+      - MCS
+    default: MCS
+  tls_active:
+    description: If true, EVCC connects to SECC as TLS client
+    type: boolean
+    default: false
+  enforce_tls:
+    description: The EVCC will enforce a TLS connection
+    type: boolean
+    default: false
+  is_cert_install_needed:
+    description: >-
+      If true, the contract certificate will be installed via the evse.
+      And any existing contract certificate will also be overwritten.
+    type: boolean
+    default: false
+provides:  
+  ev:
+    interface: ISO15118_ev
+    description: This module implements the ISO15118-20 ACDP and MCS implementation of an EV (DC only)
+enable_external_mqtt: true
+metadata:
+  license: https://opensource.org/licenses/Apache-2.0
+  authors:
+    - Sebastian Lukas
+    - Roger Bedell
