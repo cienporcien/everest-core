@@ -41,6 +41,8 @@ config:
   enable_sdp_server:
     description: >-
       Enable the built-in SDP server
+    type: boolean
+    default: true
   communications_pairing_space_xmin:
     description: The xmin in cm of the 2d rectangle that describes the area where the UWB is considered to be sufficiently in position to start communicating with this EVSE
     type: number
