@@ -53,6 +53,7 @@ libiso15118:
 evlibiso15118:
   git: https://github.com/cienporcien/evlibiso15118.git
   git_tag: 08a0003
+  cmake_condition: "EVEREST_DEPENDENCY_ENABLED_EVLIBISO15118"
 
 
 # LEM DCBM 400/600 module

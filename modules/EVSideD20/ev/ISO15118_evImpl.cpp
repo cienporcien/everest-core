@@ -46,7 +46,30 @@ static eviso15118::config::TlsNegotiationStrategy convert_tls_negotiation_strate
 void ISO15118_evImpl::init() {
     // RDB TODO - No logging path in the ev interface...
     // setup logging routine
-    eviso15118::io::set_logging_callback([](const std::string& msg) { EVLOG_info << msg; });
+    // setup logging routine
+    eviso15118::io::set_logging_callback([](const eviso15118::LogLevel& level, const std::string& msg) {
+        switch (level) {
+        case eviso15118::LogLevel::Error:
+            EVLOG_error << msg;
+            break;
+        case eviso15118::LogLevel::Warning:
+            EVLOG_warning << msg;
+            break;
+        case eviso15118::LogLevel::Info:
+            EVLOG_info << msg;
+            break;
+        case eviso15118::LogLevel::Debug:
+            EVLOG_debug << msg;
+            break;
+        case eviso15118::LogLevel::Trace:
+            EVLOG_verbose << msg;
+            break;
+        default:
+            EVLOG_critical << "(Loglevel not defined) - " << msg;
+            break;
+        }
+    });
+
 
     // RDB use a temp folder instead
     std::filesystem::path p = std::filesystem::temp_directory_path();
