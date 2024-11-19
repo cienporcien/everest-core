@@ -19,6 +19,6 @@ target_sources(${MODULE_NAME}
 # ev@c55432ab-152c-45a9-9d2e-7281d50c69c3:v1
 target_link_libraries(${MODULE_NAME}
     PRIVATE
-        libserial.so
+        libserial_static
 )
 # ev@c55432ab-152c-45a9-9d2e-7281d50c69c3:v1

@@ -55,6 +55,13 @@ evlibiso15118:
   git_tag: 08a0003
   cmake_condition: "EVEREST_DEPENDENCY_ENABLED_EVLIBISO15118"
 
+#Libserial for the UWB module
+libserial:
+  git: https://github.com/crayzeewulf/libserial.git
+  git_tag: 526a10d
+  cmake_condition: "EVEREST_DEPENDENCY_ENABLED_LIBSERIAL"
+  options: ["INSTALL_STATIC"]
+
 
 # LEM DCBM 400/600 module
 libcurl:

@@ -43,9 +43,17 @@ struct Conf {
 class Evse15118D20 : public Everest::ModuleBase {
 public:
     Evse15118D20() = delete;
-    Evse15118D20(const ModuleInfo& info, std::unique_ptr<ISO15118_chargerImplBase> p_charger, Conf& config) :
-        ModuleBase(info), p_charger(std::move(p_charger)), config(config){};
+    Evse15118D20(const ModuleInfo& info, Everest::MqttProvider& mqtt_provider,
+            std::unique_ptr<ISO15118_chargerImplBase> p_charger, std::unique_ptr<pairing_and_positioningIntf> r_PPD,
+            Conf& config) :
+        ModuleBase(info),
+        mqtt(mqtt_provider),
+        p_charger(std::move(p_charger)),
+        r_PPD(std::move(r_PPD)),
+        config(config){};
 
+
+    Everest::MqttProvider& mqtt;
     const std::unique_ptr<ISO15118_chargerImplBase> p_charger;
     const std::unique_ptr<pairing_and_positioningIntf> r_PPD;
     const Conf& config;

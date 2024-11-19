@@ -38,7 +38,7 @@ void ev_slacImpl::run() {
     module_ready.get_future().get();
 
     //The WLAN is controlled using the libwpa_client-dev library, which in turn has an 
-    //example of how to access it in the wpa_cli.c source file available at https://w1.fi/hostap.git
+    //example of how to access it in the wpa_cli.c source file available at https://w1.fi/cgit/hostap.git
     //Most things are taken from there.
 
     //Initialize the WLAN interface using the libwpa_client.a library

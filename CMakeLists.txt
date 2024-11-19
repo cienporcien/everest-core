@@ -113,6 +113,8 @@ else()
     find_package(pugixml REQUIRED)
     find_package(CURL 7.84.0 REQUIRED)
     find_package(ryml REQUIRED)
+    find_package(libserial REQUIRED)
+    find_package(libwpa-client REQUIRED)
 endif()
 
 add_subdirectory(lib)
