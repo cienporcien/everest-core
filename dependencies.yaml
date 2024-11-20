@@ -60,8 +60,10 @@ libserial:
   git: https://github.com/crayzeewulf/libserial.git
   git_tag: 526a10d
   cmake_condition: "EVEREST_DEPENDENCY_ENABLED_LIBSERIAL"
-  options: ["INSTALL_STATIC"]
-
+  options: [
+    "INSTALL_STATIC",
+    "LIBSERIAL_ENABLE_TESTING OFF",
+  ]
 
 # LEM DCBM 400/600 module
 libcurl:
