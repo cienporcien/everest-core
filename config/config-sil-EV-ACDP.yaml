@@ -1,11 +1,9 @@
 active_modules:
   iso15118_car:
-    module: CbexiEV
+    module: EVSideD20
     config_module:
       device: wlan0
-      supported_DIN70121: true
-      supported_ISO15118_2: true
-      supported_ISO15118_20_DC: true
+      supported_ISO15118_20_SERVICE: ACDP
       tls_active: false
   yeti_driver:
     module: JsYetiSimulator

@@ -16,7 +16,7 @@ active_modules:
     #   enable_ssl_logging: true
     #   tls_negotiation_strategy: ENFORCE_NO_TLS
   iso15118_car:
-    module: CbexiEV
+    module: EVSideD20
     config_module:
       device: eno1
       supported_DIN70121: true
