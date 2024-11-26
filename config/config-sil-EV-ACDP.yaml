@@ -2,7 +2,7 @@ active_modules:
   iso15118_car:
     module: EVSideD20
     config_module:
-      device: wlan0
+      device: wlp1s0
       supported_ISO15118_20_SERVICE: ACDP
       tls_active: false
   yeti_driver:
@@ -13,7 +13,7 @@ active_modules:
     module: Ev15118D8
     config_implementation:
       main:
-        device: wlan0
+        device: wlp1s0
         WPA_TYPE: WPA-Personal
         wpa_psk_passphrase: riogenil
         VSE_ADDITIONAL_INFORMATION: ACD:ID=RB123456
