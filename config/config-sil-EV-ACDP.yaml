@@ -1,3 +1,5 @@
+settings:
+  run_as_user: roger
 active_modules:
   iso15118_car:
     module: EVSideD20
@@ -21,13 +23,16 @@ active_modules:
         enable_wpa_logging: true
         VSEAdditionalInformationMatch: WPT:Z=2
         VSEOperatorIDMatch: KEP
-        VSEChargingSiteIDMatch: 12345 
+        VSEChargingSiteIDMatch: 12345     
+    capabilities:
+      - cap_dac_override
+      - cap_net_admin
   ev_manager:
     module: EvManager
     config_module:
       connector_id: 1
       auto_enable: true
-      auto_exec: false
+      auto_exec: true
       auto_exec_commands: sleep 3;iso_wait_slac_matched;iso_start_v2g_session DC;iso_wait_pwr_ready;iso_wait_for_stop 15;iso_wait_v2g_session_stopped;unplug;
       dc_target_current: 20
       dc_target_voltage: 400

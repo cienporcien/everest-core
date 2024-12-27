@@ -121,6 +121,16 @@ bool ev_slacImpl::handle_trigger_matching() {
     //sudo apt install libtins-dev
     //Unfortunately, tins needs monitor mode which is not allowed in the Raspberry Pi OS, but can be added with nexmon. Seems like a PITA, so
     //let's try to use iw dev scan instead. Another issue is that iw scan requires superuser mode. But so does tins.
+    //This takes a while, so it might be better to run this in a separate thread. 
+
+    // setup 15118-8 search for suitable network thread
+    std::thread(&ev_slacImpl::_handle_trigger_matching, this).detach();
+
+    return true;
+}
+
+void ev_slacImpl::_handle_trigger_matching() {
+
     FILE *fp;
     int status;
     char nextline[1024];
@@ -139,7 +149,7 @@ bool ev_slacImpl::handle_trigger_matching() {
             std::string errstr = fmt::format("Couldn't run iw on device {} for WiFi communication. Error: {}", config.device, strerror(errno));
             EVLOG_error << errstr;
             raise_error(error_factory->create_error("generic/CommunicationFault", "", errstr));
-            return false;
+            return;
         }
 
         std::string tssid;
@@ -255,7 +265,7 @@ bool ev_slacImpl::handle_trigger_matching() {
             std::string errstr = fmt::format("Couldn't close iw on device {} for WiFi communication. Error: {}", config.device, strerror(errno));   
             EVLOG_error << errstr;
             raise_error(error_factory->create_error("generic/CommunicationFault", "", errstr));
-            return false;
+            return;
         }
     }
 
@@ -267,7 +277,7 @@ bool ev_slacImpl::handle_trigger_matching() {
         EVLOG_error << errstr;
         publish_dlink_ready(false);
         publish_state("UNMATCHED");
-        return false;
+        return;
     }
     
     //Now, if we have found an AP with matching VSE, we need to connect to it.
@@ -403,15 +413,15 @@ bool ev_slacImpl::handle_trigger_matching() {
             std::string errstr = fmt::format("Couldn't connect to wlan network {}. Error: {}", cssid, strerror(errno));   
             EVLOG_error << errstr;
             raise_error(error_factory->create_error("generic/CommunicationFault", "", errstr));        
-        return false;
+        return;
     }
 
     //Tell Everest that the connection is made and charging can start.
-    publish_dlink_ready(true);
-    publish_state("MATCHED");            
+    publish_state("MATCHED"); 
+    publish_dlink_ready(true);              
     std::string errstr = fmt::format("Connected to wlan network: {}.", cssid);   
     EVLOG_info << errstr;
-    return true;
+    return;
 }
 
 //Assumes an input of this type:  31 90 01 and converts to the corresponding UTF8 string
